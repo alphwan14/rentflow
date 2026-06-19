@@ -1,0 +1,38 @@
+# Render blueprint for the RentFlow backend (NestJS system engine).
+# Deploy: Render Dashboard -> New -> Blueprint -> pick this repo.
+# Secrets (sync:false) are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: rentflow-backend
+    runtime: node
+    rootDir: backend
+    plan: starter # NOTE: 'free' web services spin down when idle -> the SMS
+    # worker stops ticking. Use 'starter' (always-on) for reliable delivery,
+    # or keep a free instance warm via an external cron pinging /health.
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: SMS_PROVIDER
+        value: africastalking
+      - key: SMS_WORKER_INTERVAL_MS
+        value: "10000"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AT_USERNAME
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_FROM
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: WORKER_ADMIN_TOKEN
+        sync: false
+      - key: DELIVERY_REPORT_TOKEN
+        sync: false
