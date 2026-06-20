@@ -29,6 +29,24 @@ export class SmsRepository {
     return (data ?? []) as SmsRow[];
   }
 
+  /**
+   * [SMS DEBUG] Count rows in a claimable status (pending|retrying), ignoring
+   * due-time. If this is > 0 while claimBatch keeps returning 0 over several
+   * ticks, the claim/visibility is the problem; if it's 0, nothing is due
+   * (correct) — the worker simply has no work in THIS database.
+   */
+  async countOpen(): Promise<number> {
+    const { count, error } = await this.supabase.client
+      .from("sms_messages")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "retrying"]);
+    if (error) {
+      this.logger.error(`countOpen failed: ${error.message}`);
+      return -1;
+    }
+    return count ?? 0;
+  }
+
   /** Re-queue rows stuck in 'sending' (worker crashed mid-send). */
   async reapStuck(): Promise<number> {
     const { data, error } = await this.supabase.client.rpc("reap_stuck_sms", {

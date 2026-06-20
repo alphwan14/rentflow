@@ -61,12 +61,20 @@ export class SmsWorkerService implements OnModuleInit, OnApplicationShutdown {
     try {
       const reaped = await this.repo.reapStuck();
 
+      // [SMS DEBUG] rowsSeen = open rows in THIS db; claimed = what the RPC
+      // returned; db = which project this worker drains. rowsSeen>0 with
+      // claimed=0 across ticks => real claim bug. rowsSeen=0 => no work here
+      // (wrong DB or already drained). db lets you compare to the frontend.
+      const rowsSeen = await this.repo.countOpen();
       const batch = await this.repo.claimBatch(this.config.worker.batchSize);
-      // Liveness + claim visibility. A steady stream of claimed=0 while rows sit
-      // pending means the worker is hitting the wrong DB or the claim RPC is
-      // failing — the single most useful production signal for queue stalls.
       this.logger.log(
-        JSON.stringify({ event: "sms.worker.tick", reaped, claimed: batch.length })
+        JSON.stringify({
+          event: "sms.worker.tick",
+          db: dbHost(this.config.supabaseUrl),
+          reaped,
+          rowsSeen,
+          claimed: batch.length,
+        })
       );
       for (const row of batch) {
         if (this.shuttingDown) break;
@@ -122,5 +130,14 @@ export class SmsWorkerService implements OnModuleInit, OnApplicationShutdown {
       result.raw
     );
     return "retried";
+  }
+}
+
+/** [SMS DEBUG] Supabase project host (proves which DB this worker drains). */
+function dbHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "INVALID_URL";
   }
 }
