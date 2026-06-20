@@ -59,9 +59,15 @@ export class SmsWorkerService implements OnModuleInit, OnApplicationShutdown {
     this.running = true;
     const stats = { processed: 0, sent: 0, retried: 0, failed: 0 };
     try {
-      await this.repo.reapStuck();
+      const reaped = await this.repo.reapStuck();
 
       const batch = await this.repo.claimBatch(this.config.worker.batchSize);
+      // Liveness + claim visibility. A steady stream of claimed=0 while rows sit
+      // pending means the worker is hitting the wrong DB or the claim RPC is
+      // failing — the single most useful production signal for queue stalls.
+      this.logger.log(
+        JSON.stringify({ event: "sms.worker.tick", reaped, claimed: batch.length })
+      );
       for (const row of batch) {
         if (this.shuttingDown) break;
         const outcome = await this.process(row);
@@ -82,10 +88,21 @@ export class SmsWorkerService implements OnModuleInit, OnApplicationShutdown {
   }
 
   private async process(row: SmsRow): Promise<"sent" | "retried" | "failed"> {
+    // End-to-end trace: correlate every stage by the sms_messages row id.
+    this.logger.log(
+      JSON.stringify({ event: "sms.process.start", smsId: row.id, to: row.to_phone, attempt: row.attempts + 1 })
+    );
     const result = await this.provider.send(row.to_phone, row.body);
     const attempts = row.attempts + 1;
 
     if (result.success) {
+      this.logger.log(
+        JSON.stringify({
+          event: "sms.process.sent",
+          smsId: row.id,
+          providerMessageId: result.providerMessageId ?? null,
+        })
+      );
       await this.repo.markSent(row.id, this.provider.name, attempts, result.providerMessageId, result.raw);
       return "sent";
     }

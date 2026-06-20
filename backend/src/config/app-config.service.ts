@@ -98,6 +98,74 @@ export class AppConfigService {
         deliveryReportToken: maskToken(this.deliveryReportToken),
       })
     );
+
+    // ---- ENV CHECK: single-source-of-truth audit (NO secrets) --------------
+    // Proves which Supabase project this process targets and that its
+    // service-role key belongs to that SAME project. Compare the printed
+    // supabase_url against the frontend's NEXT_PUBLIC_SUPABASE_URL — and watch
+    // for url_key_project_parity=true. This is the production tripwire for a
+    // staging/prod mix or an orphan key from an old deployment.
+    const urlRef = projectRefFromUrl(this.supabaseUrl);
+    const keyClaims = decodeSupabaseKeyClaims(this.supabaseServiceRoleKey);
+    const refParity =
+      urlRef && keyClaims.ref ? urlRef === keyClaims.ref : null;
+
+    this.logger.log(
+      [
+        "ENV CHECK:",
+        `supabase_url=${this.supabaseUrl}`,
+        `supabase_project_ref=${urlRef ?? "UNPARSEABLE"}`,
+        `service_key_ref=${keyClaims.ref ?? "UNKNOWN"}`,
+        `service_key_role=${keyClaims.role ?? "UNKNOWN"}`,
+        `url_key_project_parity=${refParity === null ? "UNKNOWN" : refParity}`,
+        `sms_provider=${this.smsProvider}`,
+        `at_username=${this.at.username || "MISSING"}`,
+        `at_from=${this.at.from ?? "(account default)"}`,
+        `delivery_token_set=${Boolean(this.deliveryReportToken)}`,
+        `worker_admin_token_set=${Boolean(this.adminToken)}`,
+        `worker_interval_ms=${this.worker.intervalMs}`,
+      ].join("\n  ")
+    );
+
+    if (refParity === false) {
+      this.logger.error(
+        `ENV MISMATCH: SUPABASE_URL project (${urlRef}) != service-role key project ` +
+          `(${keyClaims.ref}). This process is pointed at a DIFFERENT Supabase project ` +
+          `than its key — it will drain the wrong database and rows will sit pending.`
+      );
+    }
+    if (keyClaims.role && keyClaims.role !== "service_role") {
+      this.logger.error(
+        `ENV MISMATCH: SUPABASE_SERVICE_ROLE_KEY carries role="${keyClaims.role}", ` +
+          `expected "service_role". RLS will block claim_sms_batch and the queue never drains.`
+      );
+    }
+  }
+}
+
+/** Project ref = the subdomain of the Supabase URL (e.g. abcd1234.supabase.co). */
+function projectRefFromUrl(url: string): string | null {
+  try {
+    return new URL(url).hostname.split(".")[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read the non-secret claims (ref, role) from a Supabase JWT WITHOUT verifying
+ * the signature. ref/role are public identifiers, not secrets — used only to
+ * assert the key belongs to the same project as SUPABASE_URL.
+ */
+function decodeSupabaseKeyClaims(key: string): { ref?: string; role?: string } {
+  try {
+    const payload = key.split(".")[1];
+    if (!payload) return {};
+    const json = Buffer.from(payload, "base64url").toString("utf8");
+    const claims = JSON.parse(json) as { ref?: string; role?: string };
+    return { ref: claims.ref, role: claims.role };
+  } catch {
+    return {};
   }
 }
 
