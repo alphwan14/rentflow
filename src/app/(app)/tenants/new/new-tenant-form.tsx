@@ -14,8 +14,8 @@ export function NewTenantForm({ today }: { today: string }) {
         <Field label="Full name">
           <Input name="full_name" required placeholder="John Mwangi" />
         </Field>
-        <Field label="Phone" hint="For SMS receipts.">
-          <Input name="phone" type="tel" placeholder="+2547…" />
+        <Field label="Phone" hint="Required — for SMS receipts.">
+          <Input name="phone" type="tel" required placeholder="+2547…" />
         </Field>
         <Field label="Room / unit" hint="Created automatically if new.">
           <Input name="unit_label" placeholder="A2" />

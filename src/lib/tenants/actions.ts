@@ -58,21 +58,23 @@ export async function createTenant(_prev: FormState, formData: FormData): Promis
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!fullName) return { error: "Tenant name is required." };
+  if (!phone) {
+    return { error: "Phone number is required so the tenant can receive SMS receipts." };
+  }
   if (!(rentKes > 0)) return { error: "Monthly rent must be greater than zero." };
   if (!moveIn) return { error: "Move-in date is required." };
   if (dueDay < 1 || dueDay > 31) return { error: "Due day must be between 1 and 31." };
 
   // Standardize the phone to E.164 before it can ever reach the SMS queue.
-  let normalizedPhone: string | null = null;
-  if (phone) {
-    const { e164, recognized } = normalizeKenyanPhone(phone);
-    if (!recognized) {
-      return {
-        error: "Enter a valid Kenyan phone number, e.g. 0756528219 or +254756528219.",
-      };
-    }
-    normalizedPhone = e164;
+  // Phone is mandatory (above), so every tenant can receive SMS — this closes
+  // the only path by which record_payment could skip the SMS enqueue.
+  const { e164, recognized } = normalizeKenyanPhone(phone);
+  if (!recognized) {
+    return {
+      error: "Enter a valid Kenyan phone number, e.g. 0756528219 or +254756528219.",
+    };
   }
+  const normalizedPhone: string = e164;
 
   const supabase = await createClient();
   const unitId = unitLabel ? await resolveUnitId(unitLabel) : null;
