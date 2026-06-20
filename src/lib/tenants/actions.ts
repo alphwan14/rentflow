@@ -9,6 +9,20 @@ import { normalizeKenyanPhone } from "@/lib/phone";
 
 export type FormState = { error: string } | null;
 
+/**
+ * [SMS DEBUG] Project ref = the subdomain of the Supabase URL this runtime uses.
+ * Printed in Vercel function logs so production's target project can be compared
+ * against the Render backend's SUPABASE_URL and the project you inspect.
+ * A mismatch is the root cause of "receipt created but no sms_messages row".
+ */
+function supabaseProjectRef(): string {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").hostname.split(".")[0] || "UNSET";
+  } catch {
+    return "INVALID_URL";
+  }
+}
+
 /** Find-or-create a rental unit by label within the org; returns its id (or null). */
 async function resolveUnitId(label: string): Promise<string | null> {
   const trimmed = label.trim();
@@ -97,6 +111,11 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
   if (!(amountKes > 0)) return { error: "Enter an amount greater than zero." };
 
   const supabase = await createClient();
+
+  // [SMS DEBUG] Which Supabase project is this server action writing to?
+  const projectRef = supabaseProjectRef();
+  console.log(JSON.stringify({ event: "sms.enqueue.attempt", projectRef, tenantId }));
+
   const { data, error } = await supabase.rpc("record_payment", {
     p_tenant: tenantId,
     p_amount: toCents(amountKes),
@@ -105,9 +124,40 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
     p_paid_at: paidAt ? new Date(paidAt).toISOString() : new Date().toISOString(),
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    console.log(
+      JSON.stringify({ event: "sms.enqueue.skipped_reason", projectRef, reason: "record_payment_rpc_error", detail: error.message })
+    );
+    return { error: error.message };
+  }
+
+  const paymentId = (data as { payment_id?: string })?.payment_id;
+
+  // [SMS DEBUG] record_payment commits the receipt AND the sms row in one
+  // transaction. Read the row back (RLS allows org-scoped sms_messages selects)
+  // to prove whether the enqueue actually landed in THIS project.
+  if (paymentId) {
+    const { data: sms } = await supabase
+      .from("sms_messages")
+      .select("id,status,to_phone")
+      .eq("payment_id", paymentId)
+      .maybeSingle();
+    if (sms) {
+      console.log(
+        JSON.stringify({ event: "sms.enqueue.success", projectRef, paymentId, smsId: sms.id, to: sms.to_phone })
+      );
+    } else {
+      console.log(
+        JSON.stringify({
+          event: "sms.enqueue.skipped_reason",
+          projectRef,
+          paymentId,
+          reason: "no_sms_row_for_payment — tenant phone blank, OR this project differs from the one the worker drains",
+        })
+      );
+    }
+  }
 
   revalidatePath(`/tenants/${tenantId}`);
-  const paymentId = (data as { payment_id?: string })?.payment_id;
   redirect(paymentId ? `/receipts/${paymentId}` : `/tenants/${tenantId}`);
 }
