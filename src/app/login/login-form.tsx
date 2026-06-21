@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { signIn, type ActionState } from "@/lib/auth/actions";
 import { ErrorText, Field, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 
 export function LoginForm() {
@@ -14,7 +15,7 @@ export function LoginForm() {
         <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
       </Field>
       <Field label="Password">
-        <Input name="password" type="password" autoComplete="current-password" required />
+        <PasswordInput name="password" autoComplete="current-password" required />
       </Field>
       <ErrorText>{state?.error}</ErrorText>
       <SubmitButton pendingText="Signing in…" className="w-full">

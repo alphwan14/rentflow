@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { signUp, type ActionState } from "@/lib/auth/actions";
 import { ErrorText, Field, Input } from "@/components/ui";
+import { PasswordInput } from "@/components/password-input";
 import { SubmitButton } from "@/components/submit-button";
 
 export function SignupForm() {
@@ -14,7 +15,7 @@ export function SignupForm() {
         <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
       </Field>
       <Field label="Password" hint="At least 6 characters.">
-        <Input name="password" type="password" autoComplete="new-password" required />
+        <PasswordInput name="password" autoComplete="new-password" required />
       </Field>
       <ErrorText>{state?.error}</ErrorText>
       <SubmitButton pendingText="Creating account…" className="w-full">
