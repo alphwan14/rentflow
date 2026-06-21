@@ -7,7 +7,30 @@
 export type Role = "admin" | "staff";
 export type TenantState = "active" | "inactive" | "vacating";
 export type PaymentMethod = "cash" | "mpesa" | "bank" | "other";
-export type SmsStatus = "pending" | "sent" | "failed";
+export type SmsStatus =
+  | "pending"
+  | "sending"
+  | "sent"
+  | "retrying"
+  | "delivered"
+  | "failed";
+
+export interface SmsMessage {
+  id: string;
+  org_id: string;
+  tenant_id: string;
+  payment_id: string | null;
+  to_phone: string;
+  body: string;
+  status: SmsStatus;
+  provider: string | null;
+  provider_message_id: string | null;
+  error: string | null;
+  attempts: number;
+  sent_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+}
 
 export interface Org {
   id: string;
@@ -44,6 +67,8 @@ export interface Tenant {
   move_in_date: string;
   notes: string | null;
   status: TenantState;
+  is_deleted: boolean;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }

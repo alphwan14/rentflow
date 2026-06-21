@@ -114,6 +114,18 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
 
   const supabase = await createClient();
 
+  // Never record against a deleted tenant (keeps deleted tenants out of the
+  // payment -> SMS pipeline without touching record_payment itself). Fails OPEN:
+  // if the is_deleted column isn't present yet (frontend deployed before the
+  // migration), the query errors and we do NOT block the payment.
+  const { data: tenant, error: tenantErr } = await supabase
+    .from("tenants")
+    .select("is_deleted")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (!tenantErr && tenant?.is_deleted) return { error: "This tenant has been deleted." };
+
+
   // [SMS DEBUG] Which Supabase project is this server action writing to?
   const projectRef = supabaseProjectRef();
   console.log(JSON.stringify({ event: "sms.enqueue.attempt", projectRef, tenantId }));
@@ -162,4 +174,23 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
 
   revalidatePath(`/tenants/${tenantId}`);
   redirect(paymentId ? `/receipts/${paymentId}` : `/tenants/${tenantId}`);
+}
+
+/**
+ * Soft-delete a tenant: hides it from the UI and the charge/SMS pipeline and
+ * cancels its un-sent SMS, while retaining all financial history. Irreversible
+ * from the UI. Admin-only. Redirects to the tenant list on success.
+ */
+export async function softDeleteTenant(tenantId: string): Promise<{ error: string } | void> {
+  const profile = await getProfile();
+  if (!profile) return { error: "Not signed in." };
+  if (profile.role !== "admin") return { error: "Only admins can delete tenants." };
+  if (!tenantId) return { error: "Missing tenant." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("soft_delete_tenant", { p_tenant: tenantId });
+  if (error) return { error: error.message };
+
+  revalidatePath("/tenants");
+  redirect("/tenants");
 }

@@ -7,8 +7,17 @@ import { formatMoney } from "@/lib/ledger/money";
 import { presentStatus } from "@/lib/ledger/present";
 import { formatPeriod, periodFromDate } from "@/lib/ledger/period";
 import { withRunningBalance } from "@/lib/ledger/timeline";
-import type { LedgerEntry, Receipt, Tenant, TenantFinancials } from "@/lib/supabase/types";
+import { getProfile } from "@/lib/auth/profile";
+import type {
+  LedgerEntry,
+  Receipt,
+  SmsMessage,
+  Tenant,
+  TenantFinancials,
+} from "@/lib/supabase/types";
 import { RecordPaymentForm } from "./record-payment-form";
+import { SmsStatusPanel } from "./sms-status";
+import { DeleteTenant } from "./delete-tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +41,12 @@ export default async function TenantProfilePage({
   const { data: tenant } = await supabase.from("tenants").select("*").eq("id", id).maybeSingle();
   if (!tenant) notFound();
   const t = tenant as Tenant;
+  // Deleted tenants are excluded from the UI entirely.
+  if (t.is_deleted) notFound();
 
-  const [{ data: finRows }, { data: unit }, { data: ledgerRows }, { data: receiptRows }] =
+  const profile = await getProfile();
+
+  const [{ data: finRows }, { data: unit }, { data: ledgerRows }, { data: receiptRows }, { data: smsRows }] =
     await Promise.all([
       supabase.rpc("tenant_financials", { p_tenant: id }),
       t.unit_id
@@ -41,10 +54,12 @@ export default async function TenantProfilePage({
         : Promise.resolve({ data: null }),
       supabase.from("ledger_entries").select("*").eq("tenant_id", id).order("occurred_at", { ascending: true }),
       supabase.from("receipts").select("*").order("created_at", { ascending: false }),
+      supabase.from("sms_messages").select("*").eq("tenant_id", id).order("created_at", { ascending: false }),
     ]);
 
   const fin = (Array.isArray(finRows) ? finRows[0] : finRows) as TenantFinancials | undefined;
   const ledger = (ledgerRows ?? []) as LedgerEntry[];
+  const smsMessages = (smsRows ?? []) as SmsMessage[];
   // Receipts are org-scoped by RLS; keep only this tenant's (by ledger payment ids).
   const paymentIds = new Set(ledger.filter((e) => e.entry_type === "payment").map((e) => e.source_id));
   const receipts = ((receiptRows ?? []) as Receipt[]).filter((r) => paymentIds.has(r.payment_id));
@@ -78,12 +93,15 @@ export default async function TenantProfilePage({
             {t.phone ? ` · ${t.phone}` : ""}
           </p>
         </div>
-        <Link
-          href={`/tenants/${id}/statement`}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Statement
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/tenants/${id}/statement`}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Statement
+          </Link>
+          {profile?.role === "admin" ? <DeleteTenant tenantId={id} tenantName={t.full_name} /> : null}
+        </div>
       </div>
 
       {/* Financial summary */}
@@ -165,7 +183,8 @@ export default async function TenantProfilePage({
           )}
         </Card>
 
-        {/* Receipts */}
+        {/* Receipts + live SMS status */}
+        <div className="space-y-6">
         <Card className="overflow-hidden">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-700">Receipts</h2>
@@ -198,6 +217,9 @@ export default async function TenantProfilePage({
             </ul>
           )}
         </Card>
+
+        <SmsStatusPanel tenantId={id} initial={smsMessages} />
+        </div>
       </div>
     </div>
   );
