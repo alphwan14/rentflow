@@ -26,6 +26,12 @@ function CheckEmailPanel({ email }: { email: string }) {
       </form>
       {state?.success ? <p className="text-sm text-slate-500">{state.success}</p> : null}
       <ErrorText>{state?.error}</ErrorText>
+      <p className="text-sm text-slate-500">
+        Already confirmed?{" "}
+        <Link href="/login" className="font-medium text-brand hover:underline">
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

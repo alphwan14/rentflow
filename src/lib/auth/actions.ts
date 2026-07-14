@@ -32,12 +32,22 @@ export async function signUp(_prev: ActionState, formData: FormData): Promise<Ac
   const emailRedirectTo = `${siteUrl()}/auth/callback${
     isSafeInternalPath(next) ? `?next=${encodeURIComponent(next)}` : ""
   }`;
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: { emailRedirectTo },
   });
   if (error) return { error: error.message };
+
+  // Anti-enumeration: for an ALREADY-REGISTERED confirmed email, Supabase
+  // returns a fake success with an empty identities array and sends nothing.
+  // Without this check the UI claims "we sent a confirmation email" forever.
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    return {
+      error:
+        "An account with this email already exists. Sign in instead — or use “Forgot password?” if you don't remember it.",
+    };
+  }
 
   // Email confirmation may be required depending on project settings. If a
   // session exists, continue straight through the post-auth routing rule.

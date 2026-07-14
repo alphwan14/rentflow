@@ -21,6 +21,11 @@ is untouched. The Render SMS worker needs **no changes and no redeploy**.
    - Redirect URLs (allowlist):
      - `https://rentflow-kadz.vercel.app/auth/callback`
      - `https://rentflow-kadz.vercel.app/auth/confirm`
+     - `http://localhost:3000/**` — **required for local development.**
+       GoTrue silently ignores any redirect_to that is not allowlisted and
+       falls back to the Site URL (production). Without this entry, Google
+       sign-in started on localhost authenticates at Supabase but delivers
+       the session code to production — localhost never gets a session.
 3. **Authentication → Email**: "Confirm email" should be ON (it is the default
    on hosted projects — verify).
 4. **Email templates — NO customization required (Free plan OK).** The app
