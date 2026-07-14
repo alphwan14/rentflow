@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/profile";
+import { canManageTenants, canRecordPayment } from "@/lib/auth/permissions";
 import { toCents } from "@/lib/ledger/money";
 import { normalizeKenyanPhone } from "@/lib/phone";
 
@@ -47,7 +48,7 @@ async function resolveUnitId(label: string): Promise<string | null> {
 export async function createTenant(_prev: FormState, formData: FormData): Promise<FormState> {
   const profile = await getProfile();
   if (!profile) return { error: "Not signed in." };
-  if (profile.role !== "admin") return { error: "Only admins can add tenants." };
+  if (!canManageTenants(profile.role)) return { error: "Only owners and admins can add tenants." };
 
   const fullName = String(formData.get("full_name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
@@ -112,6 +113,12 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
   if (!tenantId) return { error: "Missing tenant." };
   if (!(amountKes > 0)) return { error: "Enter an amount greater than zero." };
 
+  const profile = await getProfile();
+  if (!profile) return { error: "Not signed in." };
+  if (!canRecordPayment(profile.role)) {
+    return { error: "Your role is read-only and cannot record payments." };
+  }
+
   const supabase = await createClient();
 
   // Never record against a deleted tenant (keeps deleted tenants out of the
@@ -130,7 +137,7 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
   const projectRef = supabaseProjectRef();
   console.log(JSON.stringify({ event: "sms.enqueue.attempt", projectRef, tenantId }));
 
-  const { data, error } = await supabase.rpc("record_payment", {
+  const { data, error } = await supabase.rpc("record_payment_checked", {
     p_tenant: tenantId,
     p_amount: toCents(amountKes),
     p_method: method,
@@ -184,7 +191,7 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
 export async function softDeleteTenant(tenantId: string): Promise<{ error: string } | void> {
   const profile = await getProfile();
   if (!profile) return { error: "Not signed in." };
-  if (profile.role !== "admin") return { error: "Only admins can delete tenants." };
+  if (!canManageTenants(profile.role)) return { error: "Only owners and admins can delete tenants." };
   if (!tenantId) return { error: "Missing tenant." };
 
   const supabase = await createClient();

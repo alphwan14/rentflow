@@ -34,7 +34,12 @@ export async function updateSession(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   const isAuthPage = path === "/login" || path === "/signup";
-  const isPublic = isAuthPage || path === "/";
+  const isPublic =
+    isAuthPage ||
+    path === "/" ||
+    path === "/forgot-password" ||
+    path.startsWith("/auth/") || // OAuth callback + email confirm landings
+    path.startsWith("/invite/"); // invite links must open signed-out
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();

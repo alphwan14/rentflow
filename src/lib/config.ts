@@ -7,6 +7,17 @@
 /** Canonical public site URL (used for metadata, sitemap, robots, OG). */
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rentflow-kadz.vercel.app";
 
+/**
+ * Site URL for auth redirects (OAuth callback, email confirm, invite links).
+ * Unlike SITE_URL, this must point at the environment actually serving the
+ * request, so local dev never redirects to production.
+ */
+export function siteUrl(): string {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL;
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
+}
+
 /** Supabase (public, RLS-protected). */
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";

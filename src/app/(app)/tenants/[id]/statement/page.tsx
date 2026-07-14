@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/ledger/money";
 import { formatPeriod } from "@/lib/ledger/period";
 import { withRunningBalance } from "@/lib/ledger/timeline";
+import { LedgerMobileList } from "@/components/ledger-mobile-list";
 import type { LedgerEntry, Org, Tenant, TenantFinancials } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +93,18 @@ export default async function StatementPage({
           </div>
         </div>
 
-        <table className="w-full text-sm">
+        {/* Phones read stacked cards; the table remains for md+ AND for print,
+            so printed statements are unchanged. */}
+        <div className="border-y border-slate-200 md:border-0 print:border-0">
+          {rows.length === 0 ? (
+            <p className="py-6 text-center text-sm text-slate-400 md:hidden print:hidden">
+              No activity.
+            </p>
+          ) : (
+            <LedgerMobileList rows={rows} />
+          )}
+        </div>
+        <table className="hidden w-full text-sm md:table print:table">
           <thead>
             <tr className="border-y border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
               <th className="py-2 font-medium">Date</th>

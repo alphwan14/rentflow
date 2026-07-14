@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card } from "@/components/ui";
 import { StatusBadge } from "@/components/status-badge";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/auth/profile";
+import { canManageTenants } from "@/lib/auth/permissions";
 import { formatMoney } from "@/lib/ledger/money";
 import { presentStatus } from "@/lib/ledger/present";
 import { periodFromDate } from "@/lib/ledger/period";
@@ -21,6 +23,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 export default async function DashboardPage() {
   const supabase = await createClient();
+  const profile = await getProfile();
 
   // Keep charges current (lazy backfill), then read the tenant list in one shot.
   await supabase.rpc("sync_org_charges");
@@ -56,12 +59,14 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-        <Link
-          href="/tenants/new"
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-fg hover:bg-teal-800"
-        >
-          + Add tenant
-        </Link>
+        {canManageTenants(profile?.role) ? (
+          <Link
+            href="/tenants/new"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-fg hover:bg-teal-800"
+          >
+            + Add tenant
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -90,22 +95,28 @@ export default async function DashboardPage() {
               <li key={t.tenant_id}>
                 <Link
                   href={`/tenants/${t.tenant_id}`}
-                  className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50"
+                  className="flex items-center gap-3 px-4 py-3.5 hover:bg-slate-50 sm:gap-4"
                 >
-                  <div className="w-14 shrink-0 text-sm font-semibold text-slate-500">
+                  {/* Unit column only on sm+; on phones it joins the detail line. */}
+                  <div className="hidden w-14 shrink-0 text-sm font-semibold text-slate-500 sm:block">
                     {t.unit_label ?? "—"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-slate-900">{t.full_name}</p>
-                    <p className="truncate text-xs text-slate-500">{view.detail}</p>
+                    <p className="truncate text-xs text-slate-500">
+                      <span className="sm:hidden">{t.unit_label ? `${t.unit_label} · ` : ""}</span>
+                      {view.detail}
+                    </p>
                   </div>
-                  <StatusBadge status={view} />
-                  <div className="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-900">
-                    {t.arrears > 0
-                      ? formatMoney(t.arrears)
-                      : t.credit > 0
-                        ? `+${formatMoney(t.credit, { withSymbol: false })}`
-                        : formatMoney(0)}
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-4">
+                    <StatusBadge status={view} />
+                    <div className="text-right text-sm font-semibold tabular-nums text-slate-900 sm:w-28">
+                      {t.arrears > 0
+                        ? formatMoney(t.arrears)
+                        : t.credit > 0
+                          ? `+${formatMoney(t.credit, { withSymbol: false })}`
+                          : formatMoney(0)}
+                    </div>
                   </div>
                 </Link>
               </li>

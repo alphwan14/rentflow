@@ -4,7 +4,7 @@
  *   supabase gen types typescript --linked > src/lib/supabase/types.ts
  */
 
-export type Role = "admin" | "staff";
+export type Role = "owner" | "admin" | "staff" | "caretaker" | "viewer";
 export type TenantState = "active" | "inactive" | "vacating";
 export type PaymentMethod = "cash" | "mpesa" | "bank" | "other";
 export type SmsStatus =
@@ -159,6 +159,28 @@ export interface DashboardTenant {
   credit: number;
   covered_until: string | null;
   overdue_days: number;
+}
+
+export interface OrgInvite {
+  id: string;
+  org_id: string;
+  email: string | null;
+  role: Role;
+  invited_by: string | null;
+  expires_at: string;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+}
+
+/** Row returned by the list_members() RPC (email joined from auth.users). */
+export interface TeamMember {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  role: Role;
+  created_at: string;
 }
 
 export interface RecordPaymentResult {

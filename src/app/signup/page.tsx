@@ -2,7 +2,12 @@ import { Brand } from "@/components/brand";
 import { Card } from "@/components/ui";
 import { SignupForm } from "./signup-form";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
@@ -13,7 +18,7 @@ export default function SignupPage() {
           </p>
         </div>
         <Card className="p-6">
-          <SignupForm />
+          <SignupForm next={next ?? null} />
         </Card>
       </div>
     </div>

@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { getProfile } from "@/lib/auth/profile";
+import { canManageTenants } from "@/lib/auth/permissions";
 import { periodFromDate } from "@/lib/ledger/period";
 import { NewTenantForm } from "./new-tenant-form";
 
 export default async function NewTenantPage() {
   const profile = await getProfile();
-  if (profile?.role !== "admin") redirect("/dashboard");
+  if (!canManageTenants(profile?.role)) redirect("/dashboard");
 
   const now = new Date();
   const today = `${periodFromDate(now)}-${String(now.getDate()).padStart(2, "0")}`;

@@ -8,6 +8,8 @@ import { presentStatus } from "@/lib/ledger/present";
 import { formatPeriod, periodFromDate } from "@/lib/ledger/period";
 import { withRunningBalance } from "@/lib/ledger/timeline";
 import { getProfile } from "@/lib/auth/profile";
+import { canManageTenants, canRecordPayment } from "@/lib/auth/permissions";
+import { LedgerMobileList } from "@/components/ledger-mobile-list";
 import type {
   LedgerEntry,
   Receipt,
@@ -93,14 +95,16 @@ export default async function TenantProfilePage({
             {t.phone ? ` · ${t.phone}` : ""}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full items-center gap-3 sm:w-auto">
           <Link
             href={`/tenants/${id}/statement`}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:flex-none"
           >
             Statement
           </Link>
-          {profile?.role === "admin" ? <DeleteTenant tenantId={id} tenantName={t.full_name} /> : null}
+          {canManageTenants(profile?.role) ? (
+            <DeleteTenant tenantId={id} tenantName={t.full_name} />
+          ) : null}
         </div>
       </div>
 
@@ -132,11 +136,13 @@ export default async function TenantProfilePage({
         </Card>
       </div>
 
-      {/* Record payment */}
-      <Card className="p-6">
-        <h2 className="mb-4 text-sm font-semibold text-slate-700">Record payment</h2>
-        <RecordPaymentForm tenantId={id} today={today} />
-      </Card>
+      {/* Record payment (hidden for read-only viewers) */}
+      {canRecordPayment(profile?.role) ? (
+        <Card className="p-4 sm:p-6">
+          <h2 className="mb-4 text-sm font-semibold text-slate-700">Record payment</h2>
+          <RecordPaymentForm tenantId={id} today={today} />
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Ledger timeline */}
@@ -147,7 +153,11 @@ export default async function TenantProfilePage({
           {timeline.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">No activity yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <>
+              {/* Phones get stacked cards; md+ keeps the table (scrollable if tight). */}
+              <LedgerMobileList rows={timeline} />
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
                   <th className="px-4 py-2 font-medium">Date</th>
@@ -179,7 +189,9 @@ export default async function TenantProfilePage({
                   </tr>
                 ))}
               </tbody>
-            </table>
+                </table>
+              </div>
+            </>
           )}
         </Card>
 

@@ -12,7 +12,17 @@ export function RecordPaymentForm({ tenantId, today }: { tenantId: string; today
       <input type="hidden" name="tenant_id" value={tenantId} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Amount (KES)">
-          <Input name="amount" type="number" min="1" step="1" required placeholder="15000" autoFocus />
+          <Input
+            name="amount"
+            type="number"
+            inputMode="numeric"
+            min="1"
+            step="1"
+            required
+            placeholder="15000"
+            autoFocus
+            enterKeyHint="next"
+          />
         </Field>
         <Field label="Method">
           <Select name="method" defaultValue="cash">
@@ -26,11 +36,13 @@ export function RecordPaymentForm({ tenantId, today }: { tenantId: string; today
           <Input name="paid_at" type="date" defaultValue={today} max={today} />
         </Field>
         <Field label="Note">
-          <Input name="note" placeholder="Optional" />
+          <Input name="note" placeholder="Optional" autoComplete="off" enterKeyHint="done" />
         </Field>
       </div>
       <ErrorText>{state?.error}</ErrorText>
-      <SubmitButton pendingText="Recording…">Record payment &amp; issue receipt</SubmitButton>
+      <SubmitButton pendingText="Recording…" className="w-full sm:w-auto">
+        Record payment &amp; issue receipt
+      </SubmitButton>
     </form>
   );
 }

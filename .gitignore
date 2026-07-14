@@ -22,9 +22,18 @@
 
 # misc
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.pem
 
-# debug
+# credentials that must never be committed
+client_secret*.json
+*service-account*.json
+*serviceaccount*.json
+*.credentials.json
+
+# debug / logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
