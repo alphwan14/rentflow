@@ -5,7 +5,7 @@
  */
 
 /** Canonical public site URL (used for metadata, sitemap, robots, OG). */
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rentflow-kadz.vercel.app";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://rentflow-ke.vercel.app";
 
 /**
  * Site URL for auth redirects (OAuth callback, email confirm, invite links).

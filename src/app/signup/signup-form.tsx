@@ -58,8 +58,6 @@ export function SignupForm({ next }: { next: string | null }) {
 
   return (
     <div className="space-y-4">
-      <GoogleButton next={next} />
-      <AuthDivider />
       <form action={action} className="space-y-4">
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <Field label="Email">
@@ -72,16 +70,20 @@ export function SignupForm({ next }: { next: string | null }) {
         <SubmitButton pendingText="Creating account…" className="w-full">
           Create account
         </SubmitButton>
-        <p className="text-center text-sm text-slate-500">
-          Already have an account?{" "}
-          <Link
-            href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
-            className="font-medium text-brand hover:underline"
-          >
-            Sign in
-          </Link>
-        </p>
       </form>
+
+      <AuthDivider label="or continue with" />
+      <GoogleButton next={next} />
+
+      <p className="text-center text-sm text-slate-500">
+        Already have an account?{" "}
+        <Link
+          href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
+          className="font-medium text-brand hover:underline"
+        >
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

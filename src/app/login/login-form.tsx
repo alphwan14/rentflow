@@ -13,8 +13,6 @@ export function LoginForm({ next, urlError }: { next: string | null; urlError: s
   const [state, action] = useActionState<ActionState, FormData>(signIn, null);
   return (
     <div className="space-y-4">
-      <GoogleButton next={next} />
-      <AuthDivider />
       <form action={action} className="space-y-4">
         {next ? <input type="hidden" name="next" value={next} /> : null}
         <Field label="Email">
@@ -32,16 +30,20 @@ export function LoginForm({ next, urlError }: { next: string | null; urlError: s
         <SubmitButton pendingText="Signing in…" className="w-full">
           Sign in
         </SubmitButton>
-        <p className="text-center text-sm text-slate-500">
-          New here?{" "}
-          <Link
-            href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
-            className="font-medium text-brand hover:underline"
-          >
-            Create an account
-          </Link>
-        </p>
       </form>
+
+      <AuthDivider label="or continue with" />
+      <GoogleButton next={next} />
+
+      <p className="text-center text-sm text-slate-500">
+        New here?{" "}
+        <Link
+          href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
+          className="font-medium text-brand hover:underline"
+        >
+          Create an account
+        </Link>
+      </p>
     </div>
   );
 }

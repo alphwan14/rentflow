@@ -17,10 +17,10 @@ is untouched. The Render SMS worker needs **no changes and no redeploy**.
 
 1. **Authentication → Providers → Google**: enable, paste client ID/secret. ✔ done
 2. **Authentication → URL Configuration**: ✔ done
-   - Site URL: `https://rentflow-kadz.vercel.app`
+   - Site URL: `https://rentflow-ke.vercel.app`
    - Redirect URLs (allowlist):
-     - `https://rentflow-kadz.vercel.app/auth/callback`
-     - `https://rentflow-kadz.vercel.app/auth/confirm`
+     - `https://rentflow-ke.vercel.app/auth/callback`
+     - `https://rentflow-ke.vercel.app/auth/confirm`
      - `http://localhost:3000/**` — **required for local development.**
        GoTrue silently ignores any redirect_to that is not allowlisted and
        falls back to the Site URL (production). Without this entry, Google

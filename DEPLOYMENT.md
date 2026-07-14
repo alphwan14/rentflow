@@ -55,7 +55,7 @@ Notes:
 | `AT_USERNAME` | your **production** AT app username (not `sandbox`) |
 | `AT_API_KEY` | production AT API key (secret) |
 | `AT_FROM` | registered sender id, or blank for account default |
-| `CORS_ORIGINS` | your Vercel prod URL, e.g. `https://rentflow.vercel.app` |
+| `CORS_ORIGINS` | your Vercel prod URL: `https://rentflow-ke.vercel.app` |
 | `WORKER_ADMIN_TOKEN` | strong random token (protects `POST /sms/process`) |
 | `DELIVERY_REPORT_TOKEN` | strong random token (protects the webhook) |
 | `SMS_WORKER_INTERVAL_MS` | `10000` |
