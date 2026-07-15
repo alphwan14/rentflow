@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { parseIpAllowlist } from "../sms/callback-auth";
 
 export type SmsProviderName = "africastalking" | "console";
 
@@ -45,6 +46,8 @@ export class AppConfigService {
   readonly port: number;
   readonly adminToken?: string;
   readonly deliveryReportToken?: string;
+  /** Optional source-IP allowlist for the delivery-report webhook (exact IPs or "196.216." prefixes). */
+  readonly deliveryReportAllowedIps: string[];
   /** Allowed CORS origins (frontend domains). Comma-separated CORS_ORIGINS env. */
   readonly corsOrigins: string[];
 
@@ -78,6 +81,7 @@ export class AppConfigService {
     this.port = intEnv("PORT", 3001);
     this.adminToken = process.env.WORKER_ADMIN_TOKEN?.trim() || undefined;
     this.deliveryReportToken = process.env.DELIVERY_REPORT_TOKEN?.trim() || undefined;
+    this.deliveryReportAllowedIps = parseIpAllowlist(process.env.DELIVERY_REPORT_ALLOWED_IPS);
     this.corsOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:3000")
       .split(",")
       .map((o) => o.trim())
@@ -96,6 +100,7 @@ export class AppConfigService {
         corsOrigins: this.corsOrigins,
         workerAdminToken: maskToken(this.adminToken),
         deliveryReportToken: maskToken(this.deliveryReportToken),
+        deliveryReportAllowedIps: this.deliveryReportAllowedIps.length || "disabled",
       })
     );
 

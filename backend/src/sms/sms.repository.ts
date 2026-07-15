@@ -116,7 +116,14 @@ export class SmsRepository {
 
   /**
    * Apply an Africa's Talking delivery report, matched by provider_message_id.
-   * Returns the number of rows updated (0 = unknown messageId).
+   * Returns the number of rows updated (0 = unknown messageId or not applicable).
+   *
+   * SOURCE CORRELATION (webhook auth, layer 3): a report only ever applies to
+   * a row in status 'sent' — i.e. a message this system actually handed to the
+   * gateway and that is awaiting confirmation. A forged or replayed report can
+   * never flip a delivered row to failed, resurrect a failed row, or touch a
+   * row that was never sent; it would also need to guess a valid gateway
+   * message id. Duplicate reports after settlement are logged as no-ops.
    */
   async applyDeliveryReport(
     providerMessageId: string,
@@ -135,13 +142,31 @@ export class SmsRepository {
       .from("sms_messages")
       .update(patch)
       .eq("provider_message_id", providerMessageId)
+      .eq("status", "sent")
       .select("id");
 
     if (error) {
       this.logger.error(`applyDeliveryReport ${providerMessageId} failed: ${error.message}`);
       return 0;
     }
-    return data?.length ?? 0;
+
+    const updated = data?.length ?? 0;
+    if (updated === 0) {
+      // Distinguish "unknown id" from "already settled" for the ops trail.
+      const { data: existing } = await this.supabase.client
+        .from("sms_messages")
+        .select("id,status")
+        .eq("provider_message_id", providerMessageId)
+        .maybeSingle();
+      this.logger.warn(
+        JSON.stringify({
+          event: existing ? "sms.dlr.ignored_settled" : "sms.dlr.unknown_id",
+          messageId: providerMessageId,
+          currentStatus: existing?.status ?? null,
+        })
+      );
+    }
+    return updated;
   }
 
   private async update(id: string, patch: Record<string, unknown>): Promise<void> {

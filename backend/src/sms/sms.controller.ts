@@ -5,12 +5,20 @@ import {
   Headers,
   HttpCode,
   Logger,
+  Param,
   Post,
-  Query,
+  Req,
 } from "@nestjs/common";
 import { AppConfigService } from "../config/app-config.service";
 import { SmsWorkerService } from "./sms-worker.service";
 import { SmsRepository } from "./sms.repository";
+import { tokensMatch, ipAllowed, clientIp } from "./callback-auth";
+
+/** Minimal structural request type (avoids coupling to Express typings). */
+interface IncomingRequestLike {
+  headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
+}
 
 /**
  * Extract the admin token from the request. Accepts either:
@@ -61,7 +69,7 @@ export class SmsController {
   ) {
     if (this.config.adminToken) {
       const provided = extractToken(authHeader, workerTokenHeader);
-      if (provided !== this.config.adminToken) {
+      if (!tokensMatch(provided, this.config.adminToken)) {
         throw new ForbiddenException("Invalid worker token");
       }
     }
@@ -71,28 +79,57 @@ export class SmsController {
   /**
    * Africa's Talking delivery-report callback. AT POSTs form-encoded fields:
    *   id (messageId), status, phoneNumber, networkCode, failureReason, retryCount
-   * We update the matching sms_messages row to its real delivery state.
    *
-   * Always returns 200 so AT doesn't retry; unknown ids are logged, not errored.
-   * Optionally protected by DELIVERY_REPORT_TOKEN via ?token= (configure the same
-   * value in the AT callback URL).
+   * AUTHENTICATION (AT does not sign callbacks and cannot send headers, so):
+   *   1. Shared secret in the URL PATH — register the callback as
+   *        https://<backend>/sms/delivery-report/<DELIVERY_REPORT_TOKEN>
+   *      (never the query string: paths are logged less and never leak via
+   *      referrers). Compared in constant time. X-Delivery-Token header is
+   *      accepted as an alternative for callers that can send headers.
+   *   2. Optional source-IP allowlist (DELIVERY_REPORT_ALLOWED_IPS) — enable
+   *      once Africa's Talking support confirms their egress ranges.
+   *   3. Message-id correlation — the repository only applies a report to a
+   *      row this system sent and that is awaiting confirmation.
+   *
+   * Authenticated requests always get 200 (AT must not retry); auth failures
+   * get 403 and are logged without the token value.
    */
-  @Post("delivery-report")
+  @Post(["delivery-report/:token", "delivery-report"])
   @HttpCode(200)
   async deliveryReport(
     @Body() body: Record<string, string>,
-    @Query("token") token?: string
+    @Req() req: IncomingRequestLike,
+    @Param("token") pathToken?: string,
+    @Headers("x-delivery-token") headerToken?: string
   ) {
-    if (this.config.deliveryReportToken && token !== this.config.deliveryReportToken) {
-      throw new ForbiddenException("Invalid delivery report token");
+    const ip = clientIp(req.headers, req.socket?.remoteAddress);
+
+    if (!ipAllowed(ip, this.config.deliveryReportAllowedIps)) {
+      this.logger.warn(JSON.stringify({ event: "sms.dlr.ip_rejected", ip }));
+      throw new ForbiddenException("Source not allowed");
+    }
+
+    if (this.config.deliveryReportToken) {
+      const provided = pathToken?.trim() || headerToken?.trim();
+      if (!tokensMatch(provided, this.config.deliveryReportToken)) {
+        // Log presence/shape only — never token values.
+        this.logger.warn(
+          JSON.stringify({
+            event: "sms.dlr.auth_failed",
+            ip,
+            via: pathToken ? "path" : headerToken ? "header" : "none",
+          })
+        );
+        throw new ForbiddenException("Invalid delivery report token");
+      }
     }
 
     const messageId = body.id ?? body.messageId;
     const atStatus = body.status ?? "";
     const failureReason = body.failureReason || null;
 
-    if (!messageId) {
-      this.logger.warn(JSON.stringify({ event: "sms.dlr.missing_id", body }));
+    if (!messageId || typeof messageId !== "string") {
+      this.logger.warn(JSON.stringify({ event: "sms.dlr.missing_id" }));
       return { ok: true };
     }
 
@@ -104,6 +141,7 @@ export class SmsController {
         atStatus,
         mapped: mapped ?? "intermediate",
         phoneNumber: body.phoneNumber,
+        ip,
       })
     );
 
@@ -113,9 +151,6 @@ export class SmsController {
     }
 
     const updated = await this.repo.applyDeliveryReport(messageId, mapped, failureReason, body);
-    if (updated === 0) {
-      this.logger.warn(JSON.stringify({ event: "sms.dlr.unknown_id", messageId }));
-    }
     return { ok: true, applied: updated > 0 };
   }
 }

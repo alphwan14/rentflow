@@ -67,7 +67,12 @@ Notes:
 ### After deploy
 - `GET https://<backend>.onrender.com/health` → `{"status":"ok","service":"rentflow-backend",...}`
 - In the **Africa's Talking dashboard**, set the SMS **Delivery Report callback URL** to:
-  `https://<backend>.onrender.com/sms/delivery-report?token=<DELIVERY_REPORT_TOKEN>`
+  `https://<backend>.onrender.com/sms/delivery-report/<DELIVERY_REPORT_TOKEN>`
+  (token in the URL **path**, not the query string — query strings are logged
+  far more often. AT does not sign callbacks, so the endpoint layers three
+  checks: constant-time path-token comparison, correlation against a known
+  in-flight message id, and an optional `DELIVERY_REPORT_ALLOWED_IPS` source
+  allowlist once AT support confirms their egress ranges.)
 
 ---
 
