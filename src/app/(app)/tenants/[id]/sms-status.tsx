@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { TONE_CLASSES } from "@/lib/ledger/present";
-import { SMS_STEPS, presentSmsStatus } from "@/lib/sms/status";
+import { SMS_STEPS, presentSmsStatus, classifySmsFailure } from "@/lib/sms/status";
 import type { SmsMessage } from "@/lib/supabase/types";
 
 /**
@@ -100,8 +100,12 @@ function SmsRow({ message }: { message: SmsMessage }) {
 
       <SmsTimeline view={view} />
 
-      {view.failed && message.error ? (
-        <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">{message.error}</p>
+      {view.failed ? (
+        // Business-facing failure reason — raw provider errors live only in
+        // the SMS Diagnostics developer details.
+        <p className="mt-2 rounded-md bg-red-50 px-2 py-1 text-xs text-red-700">
+          {classifySmsFailure(message.error).reason}
+        </p>
       ) : (
         <p className="mt-1.5 text-xs text-slate-400">{view.detail}</p>
       )}

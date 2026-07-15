@@ -25,17 +25,17 @@ const FADE_ANIMATION_MS = 500;
 function SmsLine({ status }: { status: SmsStatus }) {
   switch (status) {
     case "pending":
-      return <Step icon="spin" text="SMS queued — waiting to send" />;
+      return <Step icon="spin" text="Preparing SMS…" />;
     case "sending":
       return <Step icon="spin" text="Sending SMS…" />;
     case "retrying":
-      return <Step icon="warn" text="SMS delayed — retrying automatically" />;
+      return <Step icon="warn" text="Sending SMS — retrying automatically" />;
     case "sent":
-      return <Step icon="ok" text="SMS accepted by provider" />;
+      return <Step icon="ok" text="SMS sent — awaiting delivery confirmation" />;
     case "delivered":
-      return <Step icon="ok" text="Delivered to tenant" />;
+      return <Step icon="ok" text="Delivered ✓" />;
     case "failed":
-      return <Step icon="fail" text="SMS failed — delivery unsuccessful" />;
+      return <Step icon="fail" text="SMS delivery failed" />;
   }
 }
 
@@ -139,6 +139,14 @@ export function PaymentProgressCard({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
         </div>
+        {status === "failed" ? (
+          <a
+            href={`/settings/sms?q=${encodeURIComponent(initial?.to_phone ?? "")}`}
+            className="mt-3 block text-sm font-medium text-brand hover:underline"
+          >
+            View retry details →
+          </a>
+        ) : null}
       </div>
     </div>
   );

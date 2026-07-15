@@ -27,9 +27,30 @@ export interface SmsMessage {
   provider_message_id: string | null;
   error: string | null;
   attempts: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
+  locked_at: string | null;
+  provider_response: unknown;
+  delivery_report: unknown;
   sent_at: string | null;
   delivered_at: string | null;
   created_at: string;
+}
+
+/** Aggregates returned by the sms_stats() RPC (SMS Diagnostics header). */
+export interface SmsStats {
+  today: number;
+  window_days: number;
+  total: number;
+  delivered: number;
+  sent_awaiting: number;
+  in_queue: number;
+  failed: number;
+  retried: number;
+  success_rate: number | null;
+  avg_accept_secs: number | null;
+  avg_confirm_secs: number | null;
+  avg_total_secs: number | null;
 }
 
 export interface Org {

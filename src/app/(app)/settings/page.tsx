@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui";
 import { createClient } from "@/lib/supabase/server";
@@ -117,6 +118,26 @@ export default async function SettingsPage() {
           ) : null}
         </Card>
       ) : null}
+
+      {/* ---- SMS diagnostics ---- */}
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              SMS Diagnostics
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Every receipt SMS, delivery timelines, and live pipeline statistics.
+            </p>
+          </div>
+          <Link
+            href="/settings/sms"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Open diagnostics
+          </Link>
+        </div>
+      </Card>
 
       {/* ---- ownership (owner only) ---- */}
       {canTransferOwnership(profile.role) ? (
