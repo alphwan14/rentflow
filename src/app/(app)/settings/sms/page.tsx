@@ -26,9 +26,9 @@ export default async function SmsDiagnosticsPage({
   const page = Math.max(1, Number(rawPage) || 1);
   const supabase = await createClient();
 
-  // ---- header stats (tolerates the migration not being applied yet) --------
-  const statsResult = await supabase.rpc("sms_stats");
-  const stats = (statsResult.error ? null : statsResult.data) as SmsStats | null;
+  // ---- header stats: kicked off now, awaited at the end (runs in parallel
+  // with the search + list queries; tolerates the migration not being applied).
+  const statsPromise = supabase.rpc("sms_stats");
 
   // ---- search: resolve tenant-name and receipt-number matches to ids -------
   const orClauses: string[] = [];
@@ -76,6 +76,9 @@ export default async function SmsDiagnosticsPage({
       ? supabase.from("receipts").select("payment_id,receipt_no,snapshot").in("payment_id", paymentIds)
       : Promise.resolve({ data: [] }),
   ]);
+  const statsResult = await statsPromise;
+  const stats = (statsResult.error ? null : statsResult.data) as SmsStats | null;
+
   const tenantName = new Map((tenants ?? []).map((t) => [t.id as string, t.full_name as string]));
   const receiptByPayment = new Map(
     (receipts ?? []).map((r) => [

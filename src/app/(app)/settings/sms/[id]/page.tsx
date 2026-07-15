@@ -36,7 +36,7 @@ export default async function SmsDetailPage({ params }: { params: Promise<{ id: 
   const m = row as SmsMessage;
 
   const [{ data: tenant }, { data: receipt }] = await Promise.all([
-    supabase.from("tenants").select("full_name").eq("id", m.tenant_id).maybeSingle(),
+    supabase.from("tenants").select("full_name,is_deleted").eq("id", m.tenant_id).maybeSingle(),
     m.payment_id
       ? supabase.from("receipts").select("receipt_no,snapshot").eq("payment_id", m.payment_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -173,53 +173,17 @@ export default async function SmsDetailPage({ params }: { params: Promise<{ id: 
         </pre>
       </Card>
 
-      {/* ---- developer details (raw payloads live ONLY here) ---- */}
-      <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <summary className="cursor-pointer select-none px-5 py-4 text-sm font-semibold text-slate-500 transition group-open:border-b group-open:border-slate-100">
-          Developer details
-        </summary>
-        <div className="space-y-3 p-5 text-xs">
-          <DevRow label="Message id" value={m.id} />
-          <DevRow label="Provider message id" value={m.provider_message_id ?? "—"} />
-          <DevRow label="Attempts" value={`${m.attempts} / ${m.max_attempts}`} />
-          <DevRow label="Next attempt" value={m.next_attempt_at ? fmt(m.next_attempt_at) : "—"} />
-          <DevRow label="Raw error" value={m.error ?? "—"} />
-          {m.provider_response != null ? (
-            <DevJson label="Provider response" value={m.provider_response} />
-          ) : null}
-          {m.delivery_report != null ? (
-            <DevJson label="Delivery report" value={m.delivery_report} />
-          ) : null}
-        </div>
-      </details>
-
-      {m.tenant_id ? (
+      {tenant && !tenant.is_deleted ? (
         <p className="text-center text-sm">
           <Link href={`/tenants/${m.tenant_id}`} className="font-medium text-brand hover:underline">
             Open tenant profile →
           </Link>
         </p>
+      ) : tenant ? (
+        <p className="text-center text-sm text-slate-400">
+          This tenant has been deleted — SMS history is kept for your records.
+        </p>
       ) : null}
-    </div>
-  );
-}
-
-function DevRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-4">
-      <span className="text-slate-400">{label}</span>
-      <span className="break-all text-right font-mono text-slate-600">{value}</span>
-    </div>
-  );
-}
-
-function DevJson({ label, value }: { label: string; value: unknown }) {
-  return (
-    <div>
-      <p className="mb-1 text-slate-400">{label}</p>
-      <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 font-mono text-[11px] leading-relaxed text-slate-600">
-        {JSON.stringify(value, null, 2)}
-      </pre>
     </div>
   );
 }

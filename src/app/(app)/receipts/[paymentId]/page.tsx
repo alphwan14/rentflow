@@ -47,7 +47,18 @@ export default async function ReceiptPage({
     supabase.from("sms_messages").select("*").eq("payment_id", paymentId).maybeSingle(),
   ]);
   const org = orgRow as Org | null;
-  const backHref = payment?.tenant_id ? `/tenants/${payment.tenant_id}` : "/dashboard";
+
+  // "Back to tenant" must never 404: soft-deleted tenants keep their receipts
+  // but their profile page is intentionally gone — fall back to the dashboard.
+  let backHref = "/dashboard";
+  if (payment?.tenant_id) {
+    const { data: t } = await supabase
+      .from("tenants")
+      .select("is_deleted")
+      .eq("id", payment.tenant_id)
+      .maybeSingle();
+    if (t && !t.is_deleted) backHref = `/tenants/${payment.tenant_id}`;
+  }
 
   // The floating progress card is only for a just-recorded payment: pass the
   // SMS row through only while it's fresh, so old receipts never pop the card.
@@ -58,7 +69,7 @@ export default async function ReceiptPage({
     <div className="mx-auto max-w-md space-y-4">
       <div className="no-print flex items-center justify-between">
         <Link href={backHref} className="text-sm text-slate-500 hover:underline">
-          ← Back to tenant
+          {backHref === "/dashboard" ? "← Back to dashboard" : "← Back to tenant"}
         </Link>
         <PrintButton label="Print receipt" />
       </div>
