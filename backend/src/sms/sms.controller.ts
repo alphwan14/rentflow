@@ -7,6 +7,7 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   Req,
 } from "@nestjs/common";
 import { AppConfigService } from "../config/app-config.service";
@@ -81,11 +82,12 @@ export class SmsController {
    *   id (messageId), status, phoneNumber, networkCode, failureReason, retryCount
    *
    * AUTHENTICATION (AT does not sign callbacks and cannot send headers, so):
-   *   1. Shared secret in the URL PATH — register the callback as
-   *        https://<backend>/sms/delivery-report/<DELIVERY_REPORT_TOKEN>
-   *      (never the query string: paths are logged less and never leak via
-   *      referrers). Compared in constant time. X-Delivery-Token header is
-   *      accepted as an alternative for callers that can send headers.
+   *   1. Shared secret compared in constant time, accepted from the URL path
+   *      (preferred — register the callback as
+   *        https://<backend>/sms/delivery-report/<DELIVERY_REPORT_TOKEN>),
+   *      the X-Delivery-Token header, or ?token= query. AT is configured with
+   *      a bare URL only, so both URL shapes must authenticate — a dashboard
+   *      URL in either form can never silently break delivery reports.
    *   2. Optional source-IP allowlist (DELIVERY_REPORT_ALLOWED_IPS) — enable
    *      once Africa's Talking support confirms their egress ranges.
    *   3. Message-id correlation — the repository only applies a report to a
@@ -100,7 +102,8 @@ export class SmsController {
     @Body() body: Record<string, string>,
     @Req() req: IncomingRequestLike,
     @Param("token") pathToken?: string,
-    @Headers("x-delivery-token") headerToken?: string
+    @Headers("x-delivery-token") headerToken?: string,
+    @Query("token") queryToken?: string
   ) {
     const ip = clientIp(req.headers, req.socket?.remoteAddress);
 
@@ -109,19 +112,32 @@ export class SmsController {
       throw new ForbiddenException("Source not allowed");
     }
 
+    // Token may arrive via URL path (preferred), X-Delivery-Token header, or
+    // ?token= query. Africa's Talking can only be configured with a bare URL,
+    // so BOTH URL forms must authenticate — a dashboard URL in either shape
+    // can never silently break delivery reports again. All comparisons are
+    // constant-time; token values are never logged.
     if (this.config.deliveryReportToken) {
-      const provided = pathToken?.trim() || headerToken?.trim();
-      if (!tokensMatch(provided, this.config.deliveryReportToken)) {
-        // Log presence/shape only — never token values.
+      const candidates: Array<{ via: string; value?: string }> = [
+        { via: "path", value: pathToken?.trim() || undefined },
+        { via: "header", value: headerToken?.trim() || undefined },
+        { via: "query", value: queryToken?.trim() || undefined },
+      ];
+      const supplied = candidates.filter((c) => c.value);
+      const matched = supplied.find((c) => tokensMatch(c.value, this.config.deliveryReportToken!));
+
+      if (!matched) {
         this.logger.warn(
           JSON.stringify({
             event: "sms.dlr.auth_failed",
             ip,
-            via: pathToken ? "path" : headerToken ? "header" : "none",
+            reason: supplied.length === 0 ? "no_token_supplied" : "token_mismatch",
+            suppliedVia: supplied.map((c) => c.via),
           })
         );
         throw new ForbiddenException("Invalid delivery report token");
       }
+      this.logger.log(JSON.stringify({ event: "sms.dlr.auth_ok", via: matched.via, ip }));
     }
 
     const messageId = body.id ?? body.messageId;
@@ -147,10 +163,14 @@ export class SmsController {
 
     if (!mapped) {
       // Intermediate status (Sent/Submitted/Buffered) — acknowledge, no change.
+      this.logger.log(JSON.stringify({ event: "sms.dlr.finished", messageId, applied: false, why: "intermediate_status" }));
       return { ok: true, applied: false };
     }
 
     const updated = await this.repo.applyDeliveryReport(messageId, mapped, failureReason, body);
+    this.logger.log(
+      JSON.stringify({ event: "sms.dlr.finished", messageId, status: mapped, applied: updated > 0 })
+    );
     return { ok: true, applied: updated > 0 };
   }
 }

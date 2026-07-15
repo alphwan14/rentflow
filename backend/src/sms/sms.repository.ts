@@ -151,6 +151,16 @@ export class SmsRepository {
     }
 
     const updated = data?.length ?? 0;
+    if (updated > 0) {
+      this.logger.log(
+        JSON.stringify({
+          event: "sms.dlr.applied",
+          messageId: providerMessageId,
+          smsId: data![0].id,
+          status,
+        })
+      );
+    }
     if (updated === 0) {
       // Distinguish "unknown id" from "already settled" for the ops trail.
       const { data: existing } = await this.supabase.client
