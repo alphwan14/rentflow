@@ -20,7 +20,6 @@ export function RecordPaymentForm({ tenantId, today }: { tenantId: string; today
             step="1"
             required
             placeholder="15000"
-            autoFocus
             enterKeyHint="next"
           />
         </Field>
