@@ -94,6 +94,32 @@ export class SmsController {
     };
   }
 
+  /**
+   * TEMPORARY auth isolation probe: exercises the EXACT same authentication
+   * path as the delivery-report webhook (same param extraction, same
+   * candidateForms normalization, same constant-time tokensMatch) without
+   * involving Africa's Talking at all. Open in a browser:
+   *   GET /sms/webhook-test/<token>
+   * Returns fingerprints only — never token values. Remove after the
+   * investigation closes. (Not an oracle risk: the token has >120 bits of
+   * entropy and comparison is constant-time.)
+   */
+  @Get("webhook-test/:token")
+  webhookTest(@Param("token") pathToken: string) {
+    const expected = this.config.deliveryReportToken;
+    if (!expected) {
+      return { authenticated: false, reason: "env_token_missing" };
+    }
+    const hit = candidateForms(pathToken).find((f) => tokensMatch(f.value, expected));
+    return {
+      authenticated: !!hit,
+      matchedForm: hit?.form ?? null,
+      reason: hit ? null : diagnoseMismatch(pathToken, expected),
+      supplied: describeToken(pathToken),
+      expected: describeToken(expected),
+    };
+  }
+
   /** Manual one-cycle trigger (ops/testing). Protected by WORKER_ADMIN_TOKEN. */
   @Post("process")
   @HttpCode(200)
@@ -159,6 +185,22 @@ export class SmsController {
         { via: "query", raw: queryToken },
       ];
       const supplied = channels.filter((c) => c.raw && c.raw.length > 0);
+
+      // Fingerprints of BOTH sides immediately before comparison (never the
+      // values): identical sha12s here that still fail would indicate a
+      // comparison bug; differing sha12s identify which side holds what.
+      const expectedDesc = describeToken(expected);
+      const suppliedDesc = describeToken(supplied[0]?.raw);
+      this.logger.log(
+        JSON.stringify({
+          event: "sms.dlr.auth_check",
+          suppliedVia: supplied.map((c) => c.via),
+          suppliedLength: suppliedDesc.length,
+          expectedLength: expectedDesc.length,
+          suppliedSha12: suppliedDesc.sha12,
+          expectedSha12: expectedDesc.sha12,
+        })
+      );
 
       let matched: { via: string; form: string } | null = null;
       for (const c of supplied) {
