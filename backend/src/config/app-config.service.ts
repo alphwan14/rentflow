@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { parseIpAllowlist } from "../sms/callback-auth";
+import { parseIpAllowlist, describeToken } from "../sms/callback-auth";
 
 export type SmsProviderName = "africastalking" | "console";
 
@@ -101,6 +101,17 @@ export class AppConfigService {
         workerAdminToken: maskToken(this.adminToken),
         deliveryReportToken: maskToken(this.deliveryReportToken),
         deliveryReportAllowedIps: this.deliveryReportAllowedIps.length || "disabled",
+      })
+    );
+
+    // Non-reversible token fingerprints (length + sha256 prefix + shape) so a
+    // deployed instance can be checked against the expected env values — and a
+    // mismatched callback token can be attributed — without exposing secrets.
+    this.logger.log(
+      JSON.stringify({
+        event: "config.token_fingerprints",
+        deliveryReportToken: describeToken(this.deliveryReportToken),
+        workerAdminToken: describeToken(this.adminToken),
       })
     );
 

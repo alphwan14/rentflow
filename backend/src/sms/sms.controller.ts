@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   ForbiddenException,
+  Get,
   Headers,
   HttpCode,
   Logger,
@@ -13,12 +14,21 @@ import {
 import { AppConfigService } from "../config/app-config.service";
 import { SmsWorkerService } from "./sms-worker.service";
 import { SmsRepository } from "./sms.repository";
-import { tokensMatch, ipAllowed, clientIp } from "./callback-auth";
+import {
+  tokensMatch,
+  ipAllowed,
+  clientIp,
+  describeToken,
+  candidateForms,
+  diagnoseMismatch,
+} from "./callback-auth";
 
 /** Minimal structural request type (avoids coupling to Express typings). */
 interface IncomingRequestLike {
   headers: Record<string, string | string[] | undefined>;
   socket?: { remoteAddress?: string };
+  /** Express: full path+query as received. Contains the secret — NEVER log raw. */
+  originalUrl?: string;
 }
 
 /**
@@ -60,6 +70,29 @@ export class SmsController {
     private readonly repo: SmsRepository,
     private readonly config: AppConfigService
   ) {}
+
+  /**
+   * TEMPORARY diagnostic endpoint for the delivery-report auth investigation.
+   * Exposes only non-reversible token fingerprints (length + sha256 prefix +
+   * charset flags) — never the token. Compare `tokenSha12` against the value
+   * logged at startup and against your local env to verify Render holds the
+   * expected DELIVERY_REPORT_TOKEN. Remove once delivery reports flow.
+   */
+  @Get("webhook-diagnostics")
+  webhookDiagnostics() {
+    const expected = this.config.deliveryReportToken;
+    const d = describeToken(expected);
+    return {
+      mode: "path token authentication (header and ?token= also accepted)",
+      expectedCallbackFormat:
+        "https://<backend>.onrender.com/sms/delivery-report/<DELIVERY_REPORT_TOKEN>",
+      tokenConfigured: d.exists,
+      tokenLength: d.length,
+      tokenSha12: d.sha12,
+      tokenUrlSafe: d.exists && !d.containsPlus && !d.containsSlash && !d.containsEquals,
+      ipAllowlist: this.config.deliveryReportAllowedIps.length || "disabled",
+    };
+  }
 
   /** Manual one-cycle trigger (ops/testing). Protected by WORKER_ADMIN_TOKEN. */
   @Post("process")
@@ -113,31 +146,58 @@ export class SmsController {
     }
 
     // Token may arrive via URL path (preferred), X-Delivery-Token header, or
-    // ?token= query. Africa's Talking can only be configured with a bare URL,
-    // so BOTH URL forms must authenticate — a dashboard URL in either shape
-    // can never silently break delivery reports again. All comparisons are
-    // constant-time; token values are never logged.
+    // ?token= query. Each channel is additionally tried in semantically-equal
+    // normalized forms (trimmed / url-decoded / trailing-slash-stripped) so a
+    // transport-mangled but CORRECT token still authenticates — and the log
+    // says which normalization was needed. All comparisons are constant-time;
+    // token values are never logged (hash prefixes + shape flags only).
     if (this.config.deliveryReportToken) {
-      const candidates: Array<{ via: string; value?: string }> = [
-        { via: "path", value: pathToken?.trim() || undefined },
-        { via: "header", value: headerToken?.trim() || undefined },
-        { via: "query", value: queryToken?.trim() || undefined },
+      const expected = this.config.deliveryReportToken;
+      const channels: Array<{ via: string; raw?: string }> = [
+        { via: "path", raw: pathToken },
+        { via: "header", raw: headerToken },
+        { via: "query", raw: queryToken },
       ];
-      const supplied = candidates.filter((c) => c.value);
-      const matched = supplied.find((c) => tokensMatch(c.value, this.config.deliveryReportToken!));
+      const supplied = channels.filter((c) => c.raw && c.raw.length > 0);
+
+      let matched: { via: string; form: string } | null = null;
+      for (const c of supplied) {
+        const hit = candidateForms(c.raw!).find((f) => tokensMatch(f.value, expected));
+        if (hit) {
+          matched = { via: c.via, form: hit.form };
+          break;
+        }
+      }
 
       if (!matched) {
+        const first = supplied[0]?.raw;
+        // Detect the classic env-var swap: WORKER_ADMIN_TOKEN pasted into the
+        // AT dashboard instead of DELIVERY_REPORT_TOKEN (both look alike).
+        const isAdminToken =
+          !!first && !!this.config.adminToken && tokensMatch(first.trim(), this.config.adminToken);
         this.logger.warn(
           JSON.stringify({
             event: "sms.dlr.auth_failed",
             ip,
-            reason: supplied.length === 0 ? "no_token_supplied" : "token_mismatch",
+            reason: isAdminToken
+              ? "worker_admin_token_pasted_in_callback_url"
+              : diagnoseMismatch(first, expected),
             suppliedVia: supplied.map((c) => c.via),
+            expected: describeToken(expected),
+            received: describeToken(first),
+            route: {
+              matched: pathToken ? "delivery-report/:token" : "delivery-report",
+              originalUrlLength: req.originalUrl?.length ?? null,
+              endsWithSlash: req.originalUrl?.split("?")[0].endsWith("/") ?? null,
+              pathTokenLength: pathToken?.length ?? null,
+            },
           })
         );
         throw new ForbiddenException("Invalid delivery report token");
       }
-      this.logger.log(JSON.stringify({ event: "sms.dlr.auth_ok", via: matched.via, ip }));
+      this.logger.log(
+        JSON.stringify({ event: "sms.dlr.auth_ok", via: matched.via, form: matched.form, ip })
+      );
     }
 
     const messageId = body.id ?? body.messageId;
