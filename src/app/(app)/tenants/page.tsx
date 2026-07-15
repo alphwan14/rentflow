@@ -12,8 +12,12 @@ export const dynamic = "force-dynamic";
 
 export default async function TenantsPage() {
   const supabase = await createClient();
-  const profile = await getProfile();
-  await supabase.rpc("sync_org_charges");
+  // Daily-throttled sweep (see dashboard); fallback pre-migration.
+  const [profile, sync] = await Promise.all([
+    getProfile(),
+    supabase.rpc("sync_org_charges_if_stale"),
+  ]);
+  if (sync.error) await supabase.rpc("sync_org_charges");
   const { data: rows } = await supabase.rpc("dashboard_tenants");
   const tenants = (rows ?? []) as DashboardTenant[];
 

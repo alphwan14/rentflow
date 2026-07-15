@@ -31,17 +31,17 @@ export const SMS_STEPS = [
 export function presentSmsStatus(status: SmsStatus): SmsStatusView {
   switch (status) {
     case "pending":
-      return { label: "Queued", detail: "Waiting for the sender", tone: "neutral", stepIndex: 0, failed: false };
+      return { label: "Queued", detail: "Waiting to send", tone: "neutral", stepIndex: 0, failed: false };
     case "sending":
-      return { label: "Sending", detail: "Handing off to Africa's Talking", tone: "info", stepIndex: 1, failed: false };
+      return { label: "Sending", detail: "Contacting SMS provider", tone: "info", stepIndex: 1, failed: false };
     case "retrying":
-      return { label: "Retrying", detail: "Temporary issue — will retry", tone: "warn", stepIndex: 1, failed: false };
+      return { label: "Retrying", detail: "Temporary network issue — retrying automatically", tone: "warn", stepIndex: 1, failed: false };
     case "sent":
-      return { label: "Sent", detail: "Accepted by Africa's Talking", tone: "info", stepIndex: 2, failed: false };
+      return { label: "Sent", detail: "Accepted by provider", tone: "info", stepIndex: 2, failed: false };
     case "delivered":
-      return { label: "Delivered", detail: "Confirmed on the handset", tone: "good", stepIndex: 3, failed: false };
+      return { label: "Delivered", detail: "Delivered to tenant", tone: "good", stepIndex: 3, failed: false };
     case "failed":
-      return { label: "Failed", detail: "Not delivered", tone: "bad", stepIndex: -1, failed: true };
+      return { label: "Failed", detail: "Delivery unsuccessful", tone: "bad", stepIndex: -1, failed: true };
     default:
       return { label: status, detail: "", tone: "neutral", stepIndex: 0, failed: false };
   }

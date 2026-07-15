@@ -5,9 +5,15 @@ import { Card } from "@/components/ui";
 import { PrintButton } from "@/components/print-button";
 import { createClient } from "@/lib/supabase/server";
 import { formatMoney } from "@/lib/ledger/money";
-import type { Org, Receipt } from "@/lib/supabase/types";
+import { PaymentProgressCard } from "@/components/payment-progress-card";
+import type { Org, Receipt, SmsMessage } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
+
+/** Server-side freshness check: was this row created within the last N ms? */
+function createdWithin(createdAt: string, windowMs: number): boolean {
+  return Date.now() - new Date(createdAt).getTime() < windowMs;
+}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -35,12 +41,18 @@ export default async function ReceiptPage({
   const receipt = receiptRow as Receipt;
   const s = receipt.snapshot;
 
-  const [{ data: orgRow }, { data: payment }] = await Promise.all([
+  const [{ data: orgRow }, { data: payment }, { data: smsRow }] = await Promise.all([
     supabase.from("orgs").select("*").maybeSingle(),
     supabase.from("payments").select("tenant_id").eq("id", paymentId).maybeSingle(),
+    supabase.from("sms_messages").select("*").eq("payment_id", paymentId).maybeSingle(),
   ]);
   const org = orgRow as Org | null;
   const backHref = payment?.tenant_id ? `/tenants/${payment.tenant_id}` : "/dashboard";
+
+  // The floating progress card is only for a just-recorded payment: pass the
+  // SMS row through only while it's fresh, so old receipts never pop the card.
+  const sms = (smsRow as SmsMessage | null) ?? null;
+  const freshSms = sms && createdWithin(sms.created_at, 5 * 60 * 1000) ? sms : null;
 
   return (
     <div className="mx-auto max-w-md space-y-4">
@@ -84,6 +96,9 @@ export default async function ReceiptPage({
 
         <p className="pt-4 text-center text-sm text-slate-500">Thank you.</p>
       </Card>
+
+      {/* Floating post-payment progress (fresh payments only; fades on success). */}
+      <PaymentProgressCard paymentId={paymentId} initial={freshSms} />
     </div>
   );
 }

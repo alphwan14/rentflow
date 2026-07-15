@@ -23,19 +23,23 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const profile = await getProfile();
 
-  // Keep charges current (lazy backfill), then read the tenant list in one shot.
-  await supabase.rpc("sync_org_charges");
-  const { data: rows } = await supabase.rpc("dashboard_tenants");
-  const tenants = (rows ?? []) as DashboardTenant[];
+  // Charge sweep runs at most once per org per day (charges only change at
+  // month boundaries; payments/tenant edits sync their own tenant directly).
+  // Fallback keeps working if the throttle migration hasn't been applied yet.
+  const [profile, sync] = await Promise.all([
+    getProfile(),
+    supabase.rpc("sync_org_charges_if_stale"),
+  ]);
+  if (sync.error) await supabase.rpc("sync_org_charges");
 
-  // Collected this month.
+  // Tenant list + this month's collections in parallel.
   const monthStart = `${periodFromDate(new Date())}-01`;
-  const { data: monthPayments } = await supabase
-    .from("payments")
-    .select("amount_cents")
-    .gte("paid_at", monthStart);
+  const [{ data: rows }, { data: monthPayments }] = await Promise.all([
+    supabase.rpc("dashboard_tenants"),
+    supabase.from("payments").select("amount_cents").gte("paid_at", monthStart),
+  ]);
+  const tenants = (rows ?? []) as DashboardTenant[];
   const collected = (monthPayments ?? []).reduce((s, p) => s + (p.amount_cents as number), 0);
 
   const active = tenants.filter((t) => t.status === "active");

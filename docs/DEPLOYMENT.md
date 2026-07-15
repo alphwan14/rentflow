@@ -67,6 +67,17 @@ Environment variables (Production):
   (auth redirects and invite links are built from it)
 - `RESEND_API_KEY` — optional; enables automatic invite emails
 - `INVITE_EMAIL_FROM` — optional, e.g. `RentFlow <invites@yourdomain.com>`
+- `SMS_WORKER_URL=https://<your-render-service>.onrender.com` — enables the
+  post-payment worker nudge (wakes a sleeping Render instance and triggers an
+  immediate SMS tick). Copy the exact URL from the Render service page.
+- `SMS_WORKER_ADMIN_TOKEN=<same value as WORKER_ADMIN_TOKEN on Render>`
+
+> **SMS latency on Render free tier:** a free instance spins down when idle and
+> its interval timer stops — and nothing pings this service in normal operation,
+> so queued SMS sit at "pending" indefinitely. The nudge env vars above fix the
+> post-payment path (every payment wakes the worker). For retries and backlog to
+> drain promptly too, upgrade the service to **Starter** (always-on) or point an
+> external uptime pinger at `/health` every few minutes.
 
 Deploy. (Frontend before/after `db push` both work — the app tolerates both
 `admin` and `owner` roles and keeps calling `record_payment_checked` only after

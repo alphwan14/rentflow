@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { nudgeSmsWorker } from "@/lib/sms/nudge";
 import { getProfile } from "@/lib/auth/profile";
 import { canManageTenants, canRecordPayment } from "@/lib/auth/permissions";
 import { toCents } from "@/lib/ledger/money";
@@ -153,6 +155,10 @@ export async function recordPayment(_prev: FormState, formData: FormData): Promi
   }
 
   const paymentId = (data as { payment_id?: string })?.payment_id;
+
+  // Kick the SMS worker after the response is sent (never delays the user).
+  // Wakes a sleeping Render instance and triggers an immediate queue tick.
+  after(nudgeSmsWorker);
 
   // [SMS DEBUG] record_payment commits the receipt AND the sms row in one
   // transaction. Read the row back (RLS allows org-scoped sms_messages selects)
