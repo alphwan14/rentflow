@@ -47,16 +47,33 @@ function extractToken(authHeader?: string, workerTokenHeader?: string): string |
   return undefined;
 }
 
-/** Map an Africa's Talking delivery status to our terminal states (or null = intermediate). */
+/**
+ * Map an Africa's Talking DELIVERY-REPORT status to our terminal states
+ * (null = intermediate; a further report follows).
+ *
+ * Per AT's documentation, the delivery-report status namespace is:
+ *   Success   → TERMINAL: "successfully reached the recipient's handset"
+ *   Failed    → terminal: did not reach the handset
+ *   Rejected  → terminal: the telco rejected the message
+ *   Submitted → intermediate: handed to the telco
+ *   Buffered  → intermediate: queued by the telco (e.g. phone off)
+ *   Sent      → intermediate: on its way through the network
+ *
+ * ⚠ Namespace trap: the SEND-API response also says "Success", where it only
+ * means AT ACCEPTED the message (handled in the provider, statusCode 100/101).
+ * In a delivery report, "Success" is handset delivery — AT never sends a
+ * status literally named "Delivered" ("delivered" kept below defensively).
+ */
 function mapDeliveryStatus(atStatus: string): "delivered" | "failed" | null {
   switch (atStatus?.toLowerCase()) {
+    case "success":
     case "delivered":
       return "delivered";
     case "failed":
     case "rejected":
       return "failed";
     default:
-      // Sent / Submitted / Buffered / Success — not terminal; leave row as-is.
+      // Sent / Submitted / Buffered — intermediate; a final report follows.
       return null;
   }
 }
@@ -259,7 +276,13 @@ export class SmsController {
         atStatus,
         mapped: mapped ?? "intermediate",
         phoneNumber: body.phoneNumber,
+        networkCode: body.networkCode,
+        failureReason: body.failureReason,
+        retryCount: body.retryCount,
         ip,
+        // Full raw POST body for field-level inspection (AT sends no secrets
+        // here; the auth token never appears in the body).
+        rawBody: body,
       })
     );
 
