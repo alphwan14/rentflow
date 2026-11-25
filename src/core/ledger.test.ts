@@ -91,6 +91,9 @@ describe("buildStatement: oldest debt first", () => {
 });
 
 describe("payStatus", () => {
+  it("is paid ahead when there is credit", () => {
+    expect(payStatus([rent("2026-10-01"), pay("2026-10-02", kes(20_000))], "2026-10-20")).toBe("ahead");
+  });
   it("is partial when money came this month but some is still owed", () => {
     const entries = [rent("2026-10-01"), pay("2026-10-03", kes(10_000))];
     expect(payStatus(entries, "2026-10-20")).toBe("partial");
@@ -106,8 +109,8 @@ describe("previewPayment", () => {
     const s = buildStatement([rent("2026-09-01"), rent("2026-10-01"), pay("2026-09-10", kes(10_000))]);
     const p = previewPayment(s, kes(25_000));
     expect(p.cleared.map((c) => [c.label, c.cents, c.full])).toEqual([
-      ["Rent Sep 2026", kes(5_000), true],
-      ["Rent Oct 2026", kes(15_000), true],
+      ["September rent bill", kes(5_000), true],
+      ["October rent bill", kes(15_000), true],
     ]);
     expect(p.creditCents).toBe(kes(5_000));
   });

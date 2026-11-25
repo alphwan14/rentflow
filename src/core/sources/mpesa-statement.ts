@@ -159,7 +159,7 @@ export function parseStatementTable(rows: Cell[][]): ParseResult {
   }
   if (headerIdx < 0) {
     throw new StatementFormatError(
-      "This doesn't look like an M-Pesa statement. We need columns for Receipt No., Completion Time and Paid In.",
+      "This doesn't look like an M-Pesa statement. Download the statement from M-Pesa and upload that file.",
     );
   }
   const preamble = rows.slice(0, headerIdx).map((r) => r.map(cellText).join(" ")).join(" ");
@@ -248,7 +248,7 @@ export function parseStatementPdfText(text: string): ParseResult {
     starts.push({ idx: m.index!, code: m[1], time: m[2], end: m.index! + m[0].length });
   }
   if (!starts.length) {
-    throw new StatementFormatError("We couldn't find any M-Pesa transactions in this PDF. Try the CSV or Excel export instead.");
+    throw new StatementFormatError("We couldn't find any M-Pesa payments in this PDF. Try the Excel or CSV version instead.");
   }
   const payments: NormalizedPayment[] = [];
   const skipped: SkippedLine[] = [];

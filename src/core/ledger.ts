@@ -152,20 +152,36 @@ function coveredUntil(charges: AllocatedCharge[], creditCents: Cents, rentCents:
   return lastPaid;
 }
 
-export type PayStatus = "paid" | "partial" | "unpaid";
+export type PayStatus = "paid" | "partial" | "unpaid" | "ahead";
+
+/** The four words landlords see. */
+export const PAY_STATUS_LABEL: Record<PayStatus, string> = {
+  paid: "Paid",
+  partial: "Part paid",
+  unpaid: "Not paid",
+  ahead: "Paid ahead",
+};
 
 /**
- * Status of a lease for the current month, used for the green/amber/red chips.
- *  - paid:    nothing owed
- *  - partial: something owed, but money came in this period
- *  - unpaid:  something owed and nothing received this period
+ * Status of a tenancy right now, from its balance and this month's payments.
+ *  - ahead:   paid more than is owed (credit)
+ *  - paid:    owes nothing
+ *  - partial: owes something, but money came in this month
+ *  - unpaid:  owes something and nothing came in this month
  */
+export function statusFromBalance(balanceCents: Cents, paidThisMonthCents: Cents): PayStatus {
+  if (balanceCents < 0) return "ahead";
+  if (balanceCents === 0) return "paid";
+  return paidThisMonthCents > 0 ? "partial" : "unpaid";
+}
+
 export function payStatus(entries: readonly LedgerEntry[], today: ISODate): PayStatus {
   const live = activeEntries(entries);
-  if (balanceOf(live) <= 0) return "paid";
   const period = periodOf(today);
-  const paidThisPeriod = live.some((e) => e.amountCents < 0 && e.kind === "payment" && e.effectiveDate >= period);
-  return paidThisPeriod ? "partial" : "unpaid";
+  const paidThisPeriod = live
+    .filter((e) => e.amountCents < 0 && e.kind === "payment" && e.effectiveDate >= period)
+    .reduce((s, e) => s - e.amountCents, 0);
+  return statusFromBalance(balanceOf(live), paidThisPeriod);
 }
 
 /**
@@ -189,25 +205,28 @@ export function previewPayment(
 }
 
 const KIND_LABEL: Record<ChargeKind, string> = {
-  rent: "Rent",
-  water: "Water",
-  garbage: "Garbage",
+  rent: "Rent bill",
+  water: "Water bill",
+  garbage: "Garbage bill",
   service: "Service charge",
   late_fee: "Late fee",
   deposit: "Deposit",
-  arrears_bf: "Balance brought forward",
-  other: "Other",
+  arrears_bf: "Unpaid from before RentFlow",
+  other: "Bill",
 };
 
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export function chargeKindLabel(kind: ChargeKind): string {
-  return KIND_LABEL[kind] ?? kind;
+  return KIND_LABEL[kind] ?? "Bill";
 }
 
+/** "March rent bill", "October water bill", "Late fee for March". */
 export function chargeLabel(c: Pick<AllocatedCharge, "chargeKind" | "period" | "description">): string {
-  if (c.description) return c.description;
-  const base = chargeKindLabel(c.chargeKind);
-  if (!c.period) return base;
-  const [y, m] = c.period.split("-");
-  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(m) - 1];
-  return `${base} ${month} ${y}`;
+  if (c.description && c.chargeKind !== "late_fee" && c.chargeKind !== "arrears_bf") return c.description;
+  const month = c.period ? MONTHS_LONG[Number(c.period.slice(5, 7)) - 1] : null;
+  if (!month) return chargeKindLabel(c.chargeKind);
+  if (c.chargeKind === "late_fee") return `Late fee for ${month}`;
+  if (c.chargeKind === "rent" || c.chargeKind === "water" || c.chargeKind === "garbage") return `${month} ${chargeKindLabel(c.chargeKind).toLowerCase()}`;
+  return `${chargeKindLabel(c.chargeKind)}, ${month}`;
 }

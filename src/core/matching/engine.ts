@@ -342,7 +342,7 @@ function decide(payment: IncomingPayment, candidates: Candidate[], byId: Map<str
       best: null,
       candidates: top3,
       allocations: [],
-      summary: top3.length ? "Couldn't tell who paid this. A few possibilities below." : "No tenant looks like this payer.",
+      summary: top3.length ? "We couldn't tell who paid this." : "No tenant looks like this payer.",
     };
   }
 
@@ -363,7 +363,7 @@ function decide(payment: IncomingPayment, candidates: Candidate[], byId: Map<str
   let summary: string;
   if (auto) summary = `Matched to ${best.label}: ${best.reasons[0].detail.toLowerCase()}.`;
   else if (second && !clear) summary = `Could be ${best.label} or ${second.label}.`;
-  else summary = `Probably ${best.label}: ${best.reasons[0].detail.toLowerCase()}.`;
+  else summary = `Looks like ${best.label}: ${best.reasons[0].detail.toLowerCase()}.`;
 
   return {
     decision: auto ? "auto" : "suggest",
