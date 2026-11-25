@@ -1,0 +1,15 @@
+M-PESA STATEMENT
+Customer Name: JANE LANDLORD
+Mobile Number: 0722 000 111
+Statement Period: 01 Nov 2026 - 30 Nov 2026
+DETAILED STATEMENT
+Receipt No. Completion Time Details Transaction Status Paid In Withdrawn Balance
+TKD1AA11BB 2026-11-02 08:14:09 Funds received from - 0712***678 JOHN KAMAU Completed 15,000.00 15,820.00
+TKD2CC22DD 2026-11-02 19:40:51 Customer Transfer to - 0799***777 FAITH
+MUTHONI Completed -1,000.00 14,820.00
+TKD3EE33FF 2026-11-03 07:02:33 Funds received from - 0700***888 MARY
+ATIENO Completed 6,000.00 20,820.00
+TKD4GG44HH 2026-11-04 12:00:00 Pay Bill to 888880 - KPLC PREPAID Acc. 54123 Completed -2,000.00 18,820.00
+TKD5II55JJ 2026-11-05 16:45:10 Funds received from - 0711***111 SAMUEL KIPTOO Completed 20,000.00 38,820.00
+TKD6KK66LL 2026-11-06 09:09:09 Funds received from - 0733***555 PETER OTIENO Failed 12,000.00 38,820.00
+Page 1 of 1
