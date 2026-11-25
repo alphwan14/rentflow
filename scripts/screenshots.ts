@@ -12,7 +12,7 @@ import { createClient, type Session } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type BrowserContext } from "playwright-core";
-import { DEMO } from "../src/demo/data";
+import { DEMO, ORG_ID } from "../src/demo/data";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3100";
 const OUT = join(__dirname, "..", "docs", "screenshots");
@@ -74,6 +74,7 @@ async function main() {
   const { data: ahead } = await db.from("lease_overview").select("lease_id").eq("unit_code", "B15").single();
   const { data: b } = await db.from("buildings").select("id").limit(1).single();
   const { data: up } = await db.from("statement_uploads").select("id").order("created_at", { ascending: false }).limit(1).single();
+  const { data: past } = await db.from("lease_overview").select("lease_id").eq("status", "ended").limit(1).maybeSingle();
 
   const landlord: [string, string][] = [
     ["01-home", "/home"],
@@ -93,6 +94,8 @@ async function main() {
     ["15-onboarding-3-tenants", `/onboarding/tenants?b=${b!.id}`],
     ["16-onboarding-4-statement", `/onboarding/statement?b=${b!.id}`],
     ["17-onboarding-reveal", `/onboarding/done?b=${b!.id}`],
+    ["18-tenants-moved-out", "/tenants?show=moved-out"],
+    ...(past ? ([["19-past-tenant", `/tenants/${past.lease_id}`]] as [string, string][]) : []),
   ];
   const ctx = await browser.newContext();
   await ctx.addCookies(cookiesFor(session));
@@ -131,6 +134,7 @@ async function main() {
           ["32-admin-plans", "/admin/plans"],
           ["33-admin-agents", "/admin/agents"],
           ["34-admin-sms", "/admin/sms"],
+          ["35-admin-billing-landlord", `/admin/billing/${ORG_ID}`],
         ] as const)
           await shoot(sctx, n, p, w);
       await sctx.close();
