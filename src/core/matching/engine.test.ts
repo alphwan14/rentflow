@@ -243,6 +243,30 @@ describe("matchPayment: masked numbers on statements", () => {
   });
 });
 
+describe("matchPayment: past tenants", () => {
+  // Kevin lived in B12 before John and moved out owing 8,000.
+  const past = L("l-b12-old", "B12", "t-kevin", "Kevin Kiprono Rotich", 15_000, ["254722555666"], { movedOut: true, balanceCents: kes(8_000), oldestUnpaidDue: "2026-08-05" });
+  const withPast: MatchContext = { leases: [...leases, past], rules: [] };
+
+  it("a past tenant paying from their phone is matched to their old debt", () => {
+    const r = matchPayment(pay({ amount: 8_000, payerPhone: "254722555666", payerName: "KEVIN ROTICH" }), withPast);
+    expect(r.decision).toBe("auto");
+    expect(r.best?.leaseIds).toEqual(["l-b12-old"]);
+    expect(r.best?.label).toContain("moved out");
+  });
+
+  it("the old unit number goes to whoever lives there now", () => {
+    const r = matchPayment(pay({ amount: 15_000, accountRef: "B12" }), withPast);
+    expect(r.decision).toBe("auto");
+    expect(r.best?.leaseIds).toEqual(["l-b12"]);
+  });
+
+  it("an exact amount alone never points at a past tenant", () => {
+    const r = matchPayment(pay({ amount: 8_000, payerPhone: "254755123123" }), withPast);
+    expect(r.best?.leaseIds).not.toContain("l-b12-old");
+  });
+});
+
 describe("matchBatch", () => {
   it("processes in time order and reduces balances as it posts", () => {
     const a = pay({ amount: 15_000, accountRef: "B12", payerPhone: "254712345678", occurredAt: "2026-11-02T09:00:00+03:00" });

@@ -112,6 +112,7 @@ export function matchPayment(payment: IncomingPayment, ctx: MatchContext): Match
   const byId = new Map(leases.map((l) => [l.leaseId, l]));
   const byCode = new Map<string, LeaseCandidate[]>();
   for (const l of leases) {
+    if (l.movedOut) continue; // the unit now belongs to someone else
     const c = canonCode(l.unitCode);
     byCode.set(c, [...(byCode.get(c) ?? []), l]);
   }
@@ -300,6 +301,7 @@ export function matchPayment(payment: IncomingPayment, ctx: MatchContext): Match
     if (r) push(d, r);
   }
   for (const l of leases) {
+    if (l.movedOut) continue; // an exact amount alone never points at a past tenant
     const k = keyOf([l.leaseId]);
     if (drafts.has(k)) continue;
     const r = amountReason([l.leaseId]);
@@ -323,7 +325,7 @@ function toCandidate(d: Draft, byId: Map<string, LeaseCandidate>): Candidate {
   return {
     leaseIds: ls.map((l) => l.leaseId),
     tenantIds,
-    label: `${ls.map((l) => l.unitCode).join(" + ")} · ${names}`,
+    label: `${ls.map((l) => (l.movedOut ? `${l.unitCode} (moved out)` : l.unitCode)).join(" + ")} · ${names}`,
     score: noisyOr(reasons.map((r) => r.strength)),
     reasons,
   };

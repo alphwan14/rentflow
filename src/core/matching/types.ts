@@ -30,6 +30,11 @@ export interface LeaseCandidate {
   oldestUnpaidDue: ISODate | null;
   /** Tenant's phones on file (canonical). */
   phones: string[];
+  /**
+   * A past tenant who moved out still owing. Matched by phone or name only:
+   * the unit number now belongs to someone else.
+   */
+  movedOut?: boolean;
 }
 
 export type RuleKind = "phone" | "name" | "account_ref";
