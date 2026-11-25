@@ -33,7 +33,8 @@ The demo is Kasarani Heights: 40 units (A1–A20, B1–B20), 36 tenants, two mon
 | `npm run build` | Production build |
 | `npm run seed:generate` | Regenerate `supabase/seed.sql` from `src/demo/data.ts` |
 | `npx supabase db reset --remote` | **Wipes** the linked project, then applies migrations and the seed |
-| `npx supabase db push` | Applies new migrations to the linked project |
+| `npx supabase db push --remote` | Applies new migrations to the linked project |
+| `npm run screenshots` | Screenshots of every screen at 360 px and 1280 px into `docs/screenshots` (needs `next start -p 3100` running and Edge or Chrome installed) |
 
 ## How it works
 
@@ -67,7 +68,8 @@ src/core/            pure TypeScript, no framework imports; shared with the work
   import/            unit naming patterns, tenant lists, notebook-photo reader (stub)
 src/server/          Supabase session, queries, matching service, server actions
 src/ui/              design system (cards, stat cards, pills, chart)
-src/app/             routes: /home /inbox /buildings /tenants /statements /settings /onboarding /join
+src/app/             routes: /home /tenants /units /payments (/payments/who-paid, /payments/upload) /settings /onboarding /admin /join
+src/emails/          invite email (sent through Resend)
 src/demo/            demo dataset + sample statement generator
 supabase/migrations/ core → money → functions → rls → cron_realtime
 supabase/tests/      PGlite database tests
@@ -87,6 +89,18 @@ supabase/tests/      PGlite database tests
   - Pro: multiple buildings, unlimited caretakers, WhatsApp, owner statements, tax summary, expenses.
 
   Automatic matching is never gated.
+
+## Words we use
+
+Landlords see plain words, never accounting terms: "Owes KES 12,000", "Paid ahead", "Paid up to March", "Payment history", "Rent bill", "Undo payment", "Who paid this?". Status is always one of **Paid**, **Part paid**, **Not paid**, **Paid ahead**. Code and database names stay technical.
+
+## Email (Resend)
+
+1. Create a Resend account and verify your sending domain.
+2. **Invite emails from the app:** set `RESEND_API_KEY` and `EMAIL_FROM` (on Vercel and in `.env.local`). Without them, invites are shared as a link.
+3. **Sign-up confirmation emails** are sent by Supabase Auth. In Supabase → Authentication → Emails:
+   - **SMTP settings:** host `smtp.resend.com`, port `465`, username `resend`, password = your Resend API key, sender = the same address as `EMAIL_FROM`.
+   - **Templates → Confirm signup:** subject "Confirm your email for RentFlow", body = `supabase/templates/confirm.html`.
 
 ## Deploying
 
