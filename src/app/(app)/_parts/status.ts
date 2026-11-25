@@ -12,3 +12,11 @@ export const SOURCE_LABEL: Record<string, string> = {
   cash: "Cash",
   manual: "Recorded by hand",
 };
+
+/** People a payment can be assigned to: current tenants, then past tenants who still owe. */
+export function tenantOptions(current: LeaseOverview[], pastOwing: LeaseOverview[] = []) {
+  return [
+    ...current.map((l) => ({ leaseId: l.lease_id, unitCode: l.unit_code, name: l.tenant_name, buildingId: l.building_id })),
+    ...pastOwing.map((l) => ({ leaseId: l.lease_id, unitCode: `${l.unit_code} (moved out)`, name: l.tenant_name, buildingId: l.building_id })),
+  ];
+}

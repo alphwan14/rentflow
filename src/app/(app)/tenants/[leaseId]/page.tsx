@@ -81,9 +81,21 @@ export default async function TenantPage({ params }: PageProps<"/tenants/[leaseI
             </a>
           </div>
         )}
-        {l.status === "active" && (
+        {(l.status === "active" || st.balanceCents > 0) && (
           <div className="mt-6 border-t border-line pt-6">
-            <TenantActions leaseId={l.lease_id} owes={st.balanceCents > 0} canMoveOut={canManage(s.org.role)} tenantName={l.tenant_name} startDate={l.start_date} />
+            {l.status === "ended" && (
+              <p className="mb-4 text-[15px] text-muted">
+                Moved out{l.end_date ? ` on ${formatDate(l.end_date)}` : ""}. If they pay what they still owe, record it here.
+              </p>
+            )}
+            <TenantActions
+              leaseId={l.lease_id}
+              owes={st.balanceCents > 0}
+              movedOut={l.status === "ended"}
+              canMoveOut={canManage(s.org.role)}
+              tenantName={l.tenant_name}
+              startDate={l.start_date}
+            />
           </div>
         )}
       </Card>

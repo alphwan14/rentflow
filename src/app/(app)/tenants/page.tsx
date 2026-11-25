@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { formatDate } from "@/core/period";
 import { formatPhone } from "@/core/phone";
-import { getBuildings, getLeases } from "@/server/queries";
+import { getBuildings, getLeases, getPastTenants } from "@/server/queries";
 import { requireOrg } from "@/server/session";
 import { supabaseServer } from "@/server/supabase";
 import { ButtonLink, Card, EmptyState, FilterPills, List, ListRow, MoneyText, PageTitle, StatusPill, inputClass } from "@/ui";
@@ -13,6 +14,7 @@ const FILTERS = [
   { key: "not-paid", label: "Not paid" },
   { key: "part-paid", label: "Part paid" },
   { key: "paid", label: "Paid" },
+  { key: "moved-out", label: "Moved out" },
 ] as const;
 
 export default async function TenantsPage({ searchParams }: PageProps<"/tenants">) {
@@ -21,20 +23,21 @@ export default async function TenantsPage({ searchParams }: PageProps<"/tenants"
   const query = typeof sp.q === "string" ? sp.q.trim() : "";
   const show = FILTERS.some((f) => f.key === sp.show) ? (sp.show as string) : "all";
   const db = await supabaseServer();
-  const [leases, buildings] = await Promise.all([getLeases(db, s.org.orgId), getBuildings(db, s.org.orgId)]);
+  const [leases, buildings, past] = await Promise.all([getLeases(db, s.org.orgId), getBuildings(db, s.org.orgId), getPastTenants(db, s.org.orgId)]);
 
   const q = query.toLowerCase();
   const digits = q.replace(/\D/g, "").replace(/^0/, "");
-  const searched = q
-    ? leases.filter(
-        (l) => l.tenant_name.toLowerCase().includes(q) || l.unit_code.toLowerCase() === q || l.unit_code.toLowerCase().includes(q) || (digits.length >= 3 && l.phones.some((p) => p.includes(digits))),
-      )
-    : leases;
+  const matches = (l: (typeof leases)[number]) =>
+    !q || l.tenant_name.toLowerCase().includes(q) || l.unit_code.toLowerCase().includes(q) || (digits.length >= 3 && l.phones.some((p) => p.includes(digits)));
+  const searched = leases.filter(matches);
+  // Past tenants: those who still owe first.
+  const pastShown = past.filter(matches).sort((a, b) => Math.max(0, b.balance_cents) - Math.max(0, a.balance_cents));
   const groups = {
     all: searched,
     "not-paid": searched.filter((l) => leaseStatus(l) === "unpaid"),
     "part-paid": searched.filter((l) => leaseStatus(l) === "partial"),
     paid: searched.filter((l) => leaseStatus(l) === "paid" || leaseStatus(l) === "ahead"),
+    "moved-out": pastShown,
   } as Record<string, typeof leases>;
   const shown = groups[show];
   const href = (k: string) => {
@@ -69,7 +72,13 @@ export default async function TenantsPage({ searchParams }: PageProps<"/tenants"
                 href={`/tenants/${l.lease_id}`}
                 lead={l.unit_code}
                 title={l.tenant_name}
-                sub={[l.phones[0] ? formatPhone(l.phones[0]) : "No phone", buildings.length > 1 ? l.building_name : null].filter(Boolean).join(" · ")}
+                sub={[
+                  l.status === "ended" ? `Moved out${l.end_date ? ` ${formatDate(l.end_date)}` : ""}` : null,
+                  l.phones[0] ? formatPhone(l.phones[0]) : "No phone",
+                  buildings.length > 1 ? l.building_name : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 end={
                   <>
                     {l.balance_cents !== 0 && <MoneyText cents={l.balance_cents} className="text-[15px]" />}
@@ -79,6 +88,8 @@ export default async function TenantsPage({ searchParams }: PageProps<"/tenants"
               />
             ))}
           </List>
+        ) : show === "moved-out" && !q ? (
+          <EmptyState title="No past tenants" body="When someone moves out, they show here, along with anything they still owe." />
         ) : leases.length ? (
           <EmptyState title="No tenants match" body="Try another name, unit or phone number." action={<ButtonLink href="/tenants" variant="secondary">Show everyone</ButtonLink>} />
         ) : (

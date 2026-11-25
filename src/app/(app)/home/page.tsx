@@ -3,7 +3,7 @@ import Link from "next/link";
 import { firstName, monthName } from "@/core/messages";
 import { formatKES } from "@/core/money";
 import { periodOf, todayNairobi } from "@/core/period";
-import { getBuildings, getCollections, getInbox, getLeases, getUnits } from "@/server/queries";
+import { getBuildings, getCollections, getInbox, getLeases, getPastTenants, getUnits } from "@/server/queries";
 import { requireOrg } from "@/server/session";
 import { supabaseServer } from "@/server/supabase";
 import { ButtonLink, Card, CardTitle, Count, EmptyState, List, MoneyText, ProgressBar, StatCard, StatusPill, Tabs } from "@/ui";
@@ -11,7 +11,8 @@ import { CountUpMoney } from "@/ui/client";
 import { BuildingSwitcher } from "../_parts/building-switcher";
 import { RemindButton } from "../_parts/remind-button";
 import { RentChart } from "../_parts/rent-chart";
-import { leaseStatus } from "../_parts/status";
+import { StillOwedCard } from "../_parts/still-owed";
+import { leaseStatus, tenantOptions } from "../_parts/status";
 import { WhoPaidRows } from "../_parts/who-paid";
 
 export const metadata: Metadata = { title: "Home" };
@@ -36,11 +37,12 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
 
   const buildingId = typeof sp.b === "string" && buildings.some((b) => b.id === sp.b) ? sp.b : null;
   const tab = sp.tab === "who-paid" ? "who-paid" : "not-paid";
-  const [leases, units, chart, inbox] = await Promise.all([
+  const [leases, units, chart, inbox, past] = await Promise.all([
     getLeases(db, s.org.orgId, buildingId),
     getUnits(db, s.org.orgId, buildingId),
     getCollections(db, s.org.orgId, buildingId, 6),
     getInbox(db, s.org.orgId, buildingId, 20),
+    getPastTenants(db, s.org.orgId, { buildingId, owingOnly: true }),
   ]);
 
   const month = periodOf(todayNairobi());
@@ -48,9 +50,10 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
   const billed = chart.at(-1)?.billed || leases.reduce((t, l) => t + l.rent_cents, 0);
   const owing = leases.filter((l) => l.balance_cents > 0).sort((a, b) => b.balance_cents - a.balance_cents);
   const stillOwed = owing.reduce((t, l) => t + l.balance_cents, 0);
+  const pastOwed = past.reduce((t, l) => t + l.balance_cents, 0);
   const empty = units.filter((u) => u.status !== "occupied").length;
   const pct = billed > 0 ? collected / billed : 0;
-  const tenants = leases.map((l) => ({ leaseId: l.lease_id, unitCode: l.unit_code, name: l.tenant_name, buildingId: l.building_id }));
+  const tenants = tenantOptions(leases, past);
   const q = (t: string | null) => {
     const p = new URLSearchParams();
     if (buildingId) p.set("b", buildingId);
@@ -80,7 +83,7 @@ export default async function HomePage({ searchParams }: PageProps<"/home">) {
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:mt-6 sm:grid-cols-3 sm:gap-6">
         <div className="col-span-2 sm:col-span-1">
-          <StatCard label="Still owed" value={<MoneyText cents={stillOwed} />} href={q(null)} />
+          <StillOwedCard current={stillOwed} past={pastOwed} pastCount={past.length} currentHref={q(null)} />
         </div>
         <StatCard label="Not paid" value={<span className="tnum">{owing.length}</span>} sub={owing.length === 1 ? "tenant" : "tenants"} href="/tenants?show=not-paid" />
         <StatCard label="Empty units" value={<span className="tnum">{empty}</span>} sub={`of ${units.length}`} href="/units" />

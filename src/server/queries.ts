@@ -24,6 +24,16 @@ export async function getLeases(db: Db, orgId: string, buildingId?: string | nul
     .sort((a, b) => a.building_name.localeCompare(b.building_name) || a.unit_code.localeCompare(b.unit_code, "en", { numeric: true }));
 }
 
+/** Tenants who have moved out (newest first). `owingOnly` keeps those who still owe. */
+export async function getPastTenants(db: Db, orgId: string, opts: { buildingId?: string | null; owingOnly?: boolean } = {}): Promise<LeaseOverview[]> {
+  let q = db.from("lease_overview").select(LEASE_COLUMNS).eq("org_id", orgId).eq("status", "ended");
+  if (opts.buildingId) q = q.eq("building_id", opts.buildingId);
+  if (opts.owingOnly) q = q.gt("balance_cents", 0);
+  const { data, error } = await q.order("end_date", { ascending: false });
+  if (error) throw error;
+  return (data as LeaseOverview[]).map((r) => num(r, ["rent_cents", "deposit_cents", "balance_cents", "credits_cents", "paid_this_month_cents"]));
+}
+
 export async function getBuildings(db: Db, orgId: string): Promise<BuildingRow[]> {
   const { data, error } = await db
     .from("buildings")

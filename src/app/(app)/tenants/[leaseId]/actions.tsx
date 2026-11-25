@@ -10,7 +10,21 @@ import { RemindButton } from "../../_parts/remind-button";
 
 type Panel = null | "cash" | "move-out";
 
-export function TenantActions({ leaseId, owes, canMoveOut, tenantName, startDate }: { leaseId: string; owes: boolean; canMoveOut: boolean; tenantName: string; startDate: string }) {
+export function TenantActions({
+  leaseId,
+  owes,
+  movedOut = false,
+  canMoveOut,
+  tenantName,
+  startDate,
+}: {
+  leaseId: string;
+  owes: boolean;
+  movedOut?: boolean;
+  canMoveOut: boolean;
+  tenantName: string;
+  startDate: string;
+}) {
   const router = useRouter();
   const [panel, setPanel] = useState<Panel>(null);
   const [pending, start] = useTransition();
@@ -23,8 +37,8 @@ export function TenantActions({ leaseId, owes, canMoveOut, tenantName, startDate
       {panel === null && (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button onClick={() => (setMsg(null), setPanel("cash"))}>Record cash payment</Button>
-          {owes && <RemindButton leaseId={leaseId} size="md" label="Send reminder" block />}
-          {canMoveOut && (
+          {owes && !movedOut && <RemindButton leaseId={leaseId} size="md" label="Send reminder" block />}
+          {canMoveOut && !movedOut && (
             <Button variant="ghost" onClick={() => (setMsg(null), setPanel("move-out"))}>
               Move out
             </Button>

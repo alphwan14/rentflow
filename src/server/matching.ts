@@ -7,11 +7,12 @@ import type { LeaseOverview, PaymentEventRow, StoredSuggestion } from "./types";
 /** Everything the engine needs: active leases with balances and phones, plus learned rules. */
 export async function loadMatchContext(db: Db, orgId: string): Promise<{ leases: LeaseCandidate[]; rules: MatchRule[]; byBuilding: Map<string, LeaseCandidate[]> }> {
   const [{ data: leases, error: e1 }, { data: rules, error: e2 }] = await Promise.all([
+    // Current tenants, plus past tenants who moved out still owing.
     db
       .from("lease_overview")
-      .select("lease_id, tenant_id, tenant_name, unit_code, building_id, rent_cents, balance_cents, oldest_unpaid_due, phones")
+      .select("lease_id, status, tenant_id, tenant_name, unit_code, building_id, rent_cents, balance_cents, oldest_unpaid_due, phones")
       .eq("org_id", orgId)
-      .eq("status", "active"),
+      .or("status.eq.active,balance_cents.gt.0"),
     db.from("match_rules").select("kind, pattern, tenant_id").eq("org_id", orgId),
   ]);
   if (e1) throw e1;
@@ -26,6 +27,7 @@ export async function loadMatchContext(db: Db, orgId: string): Promise<{ leases:
     balanceCents: Number(l.balance_cents),
     oldestUnpaidDue: l.oldest_unpaid_due,
     phones: l.phones ?? [],
+    movedOut: l.status !== "active",
   }));
   const byBuilding = new Map<string, LeaseCandidate[]>();
   for (const c of candidates) byBuilding.set(c.buildingId, [...(byBuilding.get(c.buildingId) ?? []), c]);

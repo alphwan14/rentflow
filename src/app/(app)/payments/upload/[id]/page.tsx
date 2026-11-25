@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getLeases, getUpload } from "@/server/queries";
+import { getLeases, getPastTenants, getUpload } from "@/server/queries";
 import { requireOrg } from "@/server/session";
 import { supabaseServer } from "@/server/supabase";
 import { ButtonLink, Card, PageTitle } from "@/ui";
+import { tenantOptions } from "../../../_parts/status";
 import { WhoPaidCards } from "../../../_parts/who-paid";
 
 export const metadata: Metadata = { title: "Statement uploaded" };
@@ -15,7 +16,7 @@ export default async function UploadResult({ params }: PageProps<"/payments/uplo
   const res = await getUpload(db, id);
   if (!res) notFound();
   const { upload, events } = res;
-  const leases = await getLeases(db, s.org.orgId);
+  const [leases, past] = await Promise.all([getLeases(db, s.org.orgId), getPastTenants(db, s.org.orgId, { owingOnly: true })]);
   const open = events.filter((e) => e.status === "suggested" || e.status === "unmatched" || e.status === "pending");
   const matched = events.filter((e) => e.status === "matched").length;
 
@@ -40,7 +41,7 @@ export default async function UploadResult({ params }: PageProps<"/payments/uplo
       {open.length > 0 && (
         <div className="mt-6">
           <h2 className="mb-3 text-[15px] font-semibold">Who paid these?</h2>
-          <WhoPaidCards events={open} tenants={leases.map((l) => ({ leaseId: l.lease_id, unitCode: l.unit_code, name: l.tenant_name, buildingId: l.building_id }))} />
+          <WhoPaidCards events={open} tenants={tenantOptions(leases, past)} />
         </div>
       )}
     </div>
