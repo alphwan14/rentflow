@@ -8,7 +8,7 @@ import { cx } from "@/ui";
 const ITEMS = [
   { href: "/admin", label: "Landlords", icon: Users },
   { href: "/admin/buildings", label: "Buildings", icon: Building2 },
-  { href: "/admin/plans", label: "Plans", icon: Gauge },
+  { href: "/admin/plans", label: "Plans & billing", icon: Gauge },
   { href: "/admin/agents", label: "Agents", icon: UserRound },
   { href: "/admin/sms", label: "SMS usage", icon: MessageSquare },
 ];
@@ -18,7 +18,7 @@ export function AdminNav() {
   return (
     <nav aria-label="Admin" className="no-scrollbar flex gap-1 overflow-x-auto px-2 pb-3 md:flex-col md:px-3 md:pb-0">
       {ITEMS.map((it) => {
-        const on = it.href === "/admin" ? path === "/admin" : path.startsWith(it.href);
+        const on = it.href === "/admin" ? path === "/admin" : path.startsWith(it.href) || (it.href === "/admin/plans" && path.startsWith("/admin/billing"));
         const Icon = it.icon;
         return (
           <Link

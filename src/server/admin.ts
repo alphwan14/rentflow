@@ -36,6 +36,8 @@ export interface AdminBuilding {
   filled: number;
   owed_cents: number;
   last_upload_at: string | null;
+  plan: "free" | "growth" | "pro";
+  billing: Billing;
 }
 
 export interface AdminAgent {
@@ -56,4 +58,50 @@ export interface AdminSms {
   sent: number;
   delivered: number;
   failed: number;
+}
+
+/** What the admin shows for a landlord's subscription. */
+export type Billing = "free" | "trial" | "paid" | "overdue" | "cancelled";
+
+export interface AdminBilling {
+  org_id: string;
+  name: string;
+  owner_name: string | null;
+  owner_email: string | null;
+  plan: "free" | "growth" | "pro";
+  billing: Billing;
+  units: number;
+  price_per_unit_cents: number;
+  monthly_cents: number;
+  trial_ends: string | null;
+  paid_until: string | null;
+  last_paid_on: string | null;
+  last_paid_cents: number | null;
+  total_paid_cents: number;
+  notes: string | null;
+  price_override_cents: number | null;
+}
+
+export interface SubscriptionPayment {
+  id: string;
+  amount_cents: number;
+  paid_on: string;
+  months: number;
+  method: string;
+  reference: string | null;
+  note: string | null;
+  paid_until_after: string;
+}
+
+export async function getBilling(db: Awaited<ReturnType<typeof supabaseServer>>): Promise<AdminBilling[]> {
+  const { data } = await db.rpc("admin_billing");
+  return ((data ?? []) as AdminBilling[]).map((r) => ({
+    ...r,
+    units: Number(r.units),
+    price_per_unit_cents: Number(r.price_per_unit_cents),
+    monthly_cents: Number(r.monthly_cents),
+    total_paid_cents: Number(r.total_paid_cents),
+    last_paid_cents: r.last_paid_cents === null ? null : Number(r.last_paid_cents),
+    price_override_cents: r.price_override_cents === null ? null : Number(r.price_override_cents),
+  }));
 }
