@@ -9,7 +9,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { matchPayment } from "../src/core/matching/engine";
 import type { LeaseCandidate, MatchOutcome } from "../src/core/matching/types";
-import { BUILDING_ID, DEMO, ORG_ID, READY, RELATIVES, T, TENANTS, UNITS, VACANT, paymentsFor, uid, type DemoPayment } from "../src/demo/data";
+import { BUILDING_ID, DEMO, ORG_ID, PAST_TENANT, READY, RELATIVES, T, TENANTS, UNITS, VACANT, paymentsFor, uid, type DemoPayment } from "../src/demo/data";
 
 const history: DemoPayment[] = [...paymentsFor(-2, 28), ...paymentsFor(-1, 28), ...paymentsFor(0, 31)];
 
@@ -64,6 +64,7 @@ const data = {
     alloc: (p.for ?? []).map((u) => ({ lease_id: T[u].leaseId, amount_cents: p.amountCents })),
   })),
   rules: rules.map((r) => ({ kind: r.kind, pattern: r.pattern, tenant_id: r.tenantId })),
+  past: { tenant_id: PAST_TENANT.tenantId, lease_id: PAST_TENANT.leaseId, unit_id: uid(`unit:${PAST_TENANT.unit}`), name: PAST_TENANT.name, phone: PAST_TENANT.phone, rent: PAST_TENANT.rentCents },
   inbox: inboxRaw.map((p) => {
     const o = matchPayment(
       { id: p.code, transCode: p.code, amountCents: p.amountCents, occurredAt: "2000-01-01T00:00:00+03:00", payerPhone: p.phone, payerName: p.name, accountRef: p.ref },
@@ -151,6 +152,14 @@ begin
     end if;
     perform public.generate_rent_charges((r ->> 'lease_id')::uuid, v_today);
   end loop;
+
+  -- A past tenant: lived in A15 from the start of tracking, moved out at the end of last month owing rent.
+  r := d -> 'past';
+  insert into public.tenants (id, org_id, full_name) values ((r ->> 'tenant_id')::uuid, v_org, r ->> 'name');
+  insert into public.tenant_phones (org_id, tenant_id, phone, is_primary) values (v_org, (r ->> 'tenant_id')::uuid, r ->> 'phone', true);
+  insert into public.leases (id, org_id, unit_id, tenant_id, start_date, end_date, rent_cents, deposit_cents, due_day, status, ended_at)
+  values ((r ->> 'lease_id')::uuid, v_org, (r ->> 'unit_id')::uuid, (r ->> 'tenant_id')::uuid, v_track, m0 - 1, (r ->> 'rent')::bigint, 0, 5, 'ended', now());
+  perform public.generate_rent_charges((r ->> 'lease_id')::uuid, v_today);
 
   for i in 1..3 loop
     insert into public.statement_uploads (id, org_id, building_id, filename, format, period_start, period_end, uploaded_by, created_at)

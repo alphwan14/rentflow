@@ -23,7 +23,7 @@ describe("demo seed", () => {
   it("creates the demo org, 40 units and 36 tenancies with history", async () => {
     const r = await as(db, user, async (tx) => ({
       units: (await tx.query<{ n: number }>(`select count(*)::int as n from public.units where org_id = $1`, [ORG_ID])).rows[0].n,
-      leases: (await tx.query<{ n: number }>(`select count(*)::int as n from public.lease_overview where org_id = $1`, [ORG_ID])).rows[0].n,
+      leases: (await tx.query<{ n: number }>(`select count(*)::int as n from public.lease_overview where org_id = $1 and status = 'active'`, [ORG_ID])).rows[0].n,
       paid: (await tx.query<{ n: number }>(`select count(*)::int as n from public.payments where org_id = $1`, [ORG_ID])).rows[0].n,
       inbox: (await tx.query<{ n: number }>(`select count(*)::int as n from public.payment_events where org_id = $1 and status in ('suggested','unmatched')`, [ORG_ID])).rows[0].n,
       owing: (await tx.query<{ n: number }>(`select count(*)::int as n from public.lease_overview where org_id = $1 and balance_cents > 0`, [ORG_ID])).rows[0].n,
@@ -33,6 +33,12 @@ describe("demo seed", () => {
     expect(r.paid).toBeGreaterThan(60);
     expect(r.inbox).toBe(2);
     expect(r.owing).toBeGreaterThan(3);
+  });
+
+  it("a past tenant who moved out still owes two months", async () => {
+    const r = await as(db, user, (tx) => tx.query<{ status: string; balance_cents: number }>(`select status, balance_cents from public.lease_overview where org_id = $1 and status = 'ended'`, [ORG_ID]));
+    expect(r.rows).toHaveLength(1);
+    expect(Number(r.rows[0].balance_cents)).toBe(2 * 12_000_00);
   });
 
   it("George (B7) owes three months plus arrears; Eunice (B15) is in credit", async () => {

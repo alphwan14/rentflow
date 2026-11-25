@@ -170,3 +170,13 @@ export function trickyPayments(maxDay: number): DemoPayment[] {
     { code: "TKZ9LOOK04", month: 0, day: d(2), time: "21:30:00", amountCents: 15_000_00, phone: "254799000555", name: "ISAAC TOO KIPLAGAT", ref: "BI9", for: ["B19"] },
   ];
 }
+
+/** Someone who moved out of A15 last month still owing two months' rent. */
+export const PAST_TENANT = {
+  unit: "A15",
+  tenantId: uid("tenant:past:A15"),
+  leaseId: uid("lease:past:A15"),
+  name: "Kevin Mutai Korir",
+  phone: "254712000999",
+  rentCents: 12_000_00,
+};
