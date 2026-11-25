@@ -1,55 +1,34 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { formatKES } from "@/core/money";
 import { supabaseBrowser } from "@/lib/supabase-browser";
 import { buttonClass, cx } from "./index";
 
-export function SubmitButton({ children, pendingText, variant = "primary", className }: { children: ReactNode; pendingText?: string; variant?: "primary" | "secondary"; className?: string }) {
+export function SubmitButton({
+  children,
+  pendingText,
+  variant = "primary",
+  size = "lg",
+  className,
+}: {
+  children: ReactNode;
+  pendingText?: string;
+  variant?: "primary" | "secondary";
+  size?: "md" | "lg";
+  className?: string;
+}) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={cx(buttonClass(variant), className)}>
-      {pending ? (pendingText ?? "Working…") : children}
+    <button type="submit" disabled={pending} className={cx(buttonClass(variant, size), className)}>
+      {pending ? (pendingText ?? "Please wait…") : children}
     </button>
   );
 }
 
-export function NavPills({ items }: { items: { href: string; label: string; badge?: number }[] }) {
-  const path = usePathname();
-  return (
-    <nav aria-label="Main" className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      {items.map((it) => {
-        const active = path === it.href || (it.href !== "/home" && path.startsWith(it.href));
-        return (
-          <Link
-            key={it.href}
-            href={it.href}
-            aria-current={active ? "page" : undefined}
-            className={cx(
-              "flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium whitespace-nowrap transition-colors",
-              active ? "bg-accent text-accent-ink" : "bg-card text-ink-2 hover:text-ink border border-line/70",
-            )}
-          >
-            {it.label}
-            {!!it.badge && (
-              <span className={cx("num rounded-full px-1.5 text-[11px] leading-5 font-semibold", active ? "bg-white/25" : "bg-accent text-accent-ink")}>
-                {it.badge}
-              </span>
-            )}
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
-
-/**
- * Subscribes to this org's payment events and payments over Supabase Realtime
- * and refreshes the page when something is matched, so new money shows up
- * without a reload.
- */
+/** Refreshes the page when a payment for this account arrives or is matched. */
 export function LiveRefresh({ orgId }: { orgId: string }) {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,6 +49,32 @@ export function LiveRefresh({ orgId }: { orgId: string }) {
     };
   }, [orgId, router]);
   return null;
+}
+
+/** Counts a money figure up once, on first view. Respects reduced motion. */
+export function CountUpMoney({ cents, className }: { cents: number; className?: string }) {
+  const [shown, setShown] = useState(cents);
+  const done = useRef(false);
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || cents <= 0) return;
+    const start = performance.now();
+    const dur = 700;
+    let raf = 0;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setShown(Math.round((cents * eased) / 100) * 100);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame((t) => {
+      setShown(0);
+      tick(t);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [cents]);
+  return <span className={cx("money", className)}>{formatKES(shown)}</span>;
 }
 
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
