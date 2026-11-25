@@ -155,7 +155,8 @@ declare
   v_caretakers int;
   v_buildings int;
 begin
-  if p_role = 'owner' then perform public._deny('Owners can''t be invited. Invite a manager instead.'); end if;
+  -- Owners can invite anyone (a field agent hands the account over to the landlord);
+  -- managers can invite caretakers and viewers.
   if not (public.is_owner(p_org) or (public.can_manage(p_org) and p_role in ('caretaker', 'viewer'))) then
     perform public._deny();
   end if;

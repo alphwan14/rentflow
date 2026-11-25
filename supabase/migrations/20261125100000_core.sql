@@ -39,7 +39,7 @@ create index members_user_idx on public.members (user_id);
 create table public.org_invites (
   id          uuid primary key default gen_random_uuid(),
   org_id      uuid not null references public.orgs (id) on delete cascade,
-  role        public.member_role not null check (role <> 'owner'),
+  role        public.member_role not null,
   token_hash  text not null unique,
   created_by  uuid references auth.users (id) on delete set null,
   expires_at  timestamptz not null default now() + interval '7 days',
