@@ -1,72 +1,101 @@
-import Link from "next/link";
-import { Card } from "@/components/ui";
-import { StatusBadge } from "@/components/status-badge";
-import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/auth/profile";
-import { canManageTenants } from "@/lib/auth/permissions";
-import { formatMoney } from "@/lib/ledger/money";
-import { presentStatus } from "@/lib/ledger/present";
-import type { DashboardTenant } from "@/lib/supabase/types";
+import type { Metadata } from "next";
+import { formatDate } from "@/core/period";
+import { formatPhone } from "@/core/phone";
+import { getBuildings, getLeases, getPastTenants } from "@/server/queries";
+import { requireOrg } from "@/server/session";
+import { supabaseServer } from "@/server/supabase";
+import { ButtonLink, Card, EmptyState, FilterPills, List, ListRow, MoneyText, PageTitle, StatusPill, inputClass } from "@/ui";
+import { leaseStatus } from "../_parts/status";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Tenants" };
 
-export default async function TenantsPage() {
-  const supabase = await createClient();
-  // Daily-throttled sweep (see dashboard); fallback pre-migration.
-  const [profile, sync] = await Promise.all([
-    getProfile(),
-    supabase.rpc("sync_org_charges_if_stale"),
-  ]);
-  if (sync.error) await supabase.rpc("sync_org_charges");
-  const { data: rows } = await supabase.rpc("dashboard_tenants");
-  const tenants = (rows ?? []) as DashboardTenant[];
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "not-paid", label: "Not paid" },
+  { key: "part-paid", label: "Part paid" },
+  { key: "paid", label: "Paid" },
+  { key: "moved-out", label: "Moved out" },
+] as const;
+
+export default async function TenantsPage({ searchParams }: PageProps<"/tenants">) {
+  const s = await requireOrg();
+  const sp = await searchParams;
+  const query = typeof sp.q === "string" ? sp.q.trim() : "";
+  const show = FILTERS.some((f) => f.key === sp.show) ? (sp.show as string) : "all";
+  const db = await supabaseServer();
+  const [leases, buildings, past] = await Promise.all([getLeases(db, s.org.orgId), getBuildings(db, s.org.orgId), getPastTenants(db, s.org.orgId)]);
+
+  const q = query.toLowerCase();
+  const digits = q.replace(/\D/g, "").replace(/^0/, "");
+  const matches = (l: (typeof leases)[number]) =>
+    !q || l.tenant_name.toLowerCase().includes(q) || l.unit_code.toLowerCase().includes(q) || (digits.length >= 3 && l.phones.some((p) => p.includes(digits)));
+  const searched = leases.filter(matches);
+  // Past tenants: those who still owe first.
+  const pastShown = past.filter(matches).sort((a, b) => Math.max(0, b.balance_cents) - Math.max(0, a.balance_cents));
+  const groups = {
+    all: searched,
+    "not-paid": searched.filter((l) => leaseStatus(l) === "unpaid"),
+    "part-paid": searched.filter((l) => leaseStatus(l) === "partial"),
+    paid: searched.filter((l) => leaseStatus(l) === "paid" || leaseStatus(l) === "ahead"),
+    "moved-out": pastShown,
+  } as Record<string, typeof leases>;
+  const shown = groups[show];
+  const href = (k: string) => {
+    const p = new URLSearchParams();
+    if (query) p.set("q", query);
+    if (k !== "all") p.set("show", k);
+    const str = p.toString();
+    return `/tenants${str ? `?${str}` : ""}`;
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Tenants</h1>
-        {canManageTenants(profile?.role) ? (
-          <Link
-            href="/tenants/new"
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-brand-fg hover:bg-teal-800"
-          >
-            + Add tenant
-          </Link>
-        ) : null}
+    <div className="fade-in">
+      <PageTitle sub={`${leases.length} ${leases.length === 1 ? "tenant" : "tenants"}`} action={<ButtonLink href="/units/add-tenants" variant="secondary">Add tenants</ButtonLink>}>
+        Tenants
+      </PageTitle>
+      <form role="search" className="mb-4">
+        <label htmlFor="q" className="sr-only">
+          Search tenants
+        </label>
+        <input id="q" name="q" type="search" defaultValue={query} placeholder="Search name, unit or phone" className={inputClass} />
+        {show !== "all" && <input type="hidden" name="show" value={show} />}
+      </form>
+      <div className="mb-4">
+        <FilterPills active={show} items={FILTERS.map((f) => ({ key: f.key, label: f.label, href: href(f.key), count: groups[f.key].length }))} />
       </div>
-
-      {tenants.length === 0 ? (
-        <Card className="px-4 py-12 text-center text-sm text-slate-500">No tenants yet.</Card>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {tenants.map((t) => {
-            const view = presentStatus({
-              arrears: t.arrears,
-              credit: t.credit,
-              coveredUntil: t.covered_until,
-              overdueDays: t.overdue_days,
-              hasCharges: t.balance !== 0 || t.covered_until !== null,
-            });
-            return (
-              <Link key={t.tenant_id} href={`/tenants/${t.tenant_id}`}>
-                <Card className="p-4 transition hover:shadow-md">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-900">{t.full_name}</p>
-                      <p className="text-xs text-slate-500">
-                        {t.unit_label ? `Room ${t.unit_label} · ` : ""}
-                        {formatMoney(t.monthly_rent_cents)}/mo
-                      </p>
-                    </div>
-                    <StatusBadge status={view} />
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">{view.detail}</p>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+      <Card>
+        {shown.length ? (
+          <List>
+            {shown.map((l) => (
+              <ListRow
+                key={l.lease_id}
+                href={`/tenants/${l.lease_id}`}
+                lead={l.unit_code}
+                title={l.tenant_name}
+                sub={[
+                  l.status === "ended" ? `Moved out${l.end_date ? ` ${formatDate(l.end_date)}` : ""}` : null,
+                  l.phones[0] ? formatPhone(l.phones[0]) : "No phone",
+                  buildings.length > 1 ? l.building_name : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                end={
+                  <>
+                    {l.balance_cents !== 0 && <MoneyText cents={l.balance_cents} className="text-[15px]" />}
+                    <StatusPill status={leaseStatus(l)} />
+                  </>
+                }
+              />
+            ))}
+          </List>
+        ) : show === "moved-out" && !q ? (
+          <EmptyState title="No past tenants" body="When someone moves out, they show here, along with anything they still owe." />
+        ) : leases.length ? (
+          <EmptyState title="No tenants match" body="Try another name, unit or phone number." action={<ButtonLink href="/tenants" variant="secondary">Show everyone</ButtonLink>} />
+        ) : (
+          <EmptyState title="No tenants yet" body="Add your tenants to start tracking rent." action={<ButtonLink href="/units/add-tenants">Add tenants</ButtonLink>} />
+        )}
+      </Card>
     </div>
   );
 }

@@ -1,0 +1,14 @@
+Organization Name:,KASARANI HEIGHTS LTD
+Short Code:,4012345
+Time Period:,01-11-2026 to 30-11-2026
+Operator:,landlord
+"Receipt No.","Completion Time","Initiation Time","Details","Transaction Status","Paid In","Withdrawn","Balance","Balance Confirmed","Reason Type","Other Party Info","Linked Transaction ID","A/C No."
+"TKB3XY12ZQ","01-11-2026 07:58:41","01-11-2026 07:58:41","Pay Bill from 254712345678 - JOHN KAMAU MWANGI Acc. B12","Completed","15,000.00","","15,000.00","true","Pay Bill Online","254712345678 - JOHN KAMAU MWANGI","","B12"
+"TKB4AB34CD","02-11-2026 12:10:05","02-11-2026 12:10:05","Pay Bill Online from 2547******222 - GRACE WANJIKU NJERI Acc. b-21","Completed","15,000.00","","30,000.00","true","Pay Bill Online","2547******222 - GRACE WANJIKU NJERI","","b-21"
+"TKB5EF56GH","03-11-2026 18:22:47","03-11-2026 18:22:47","Pay Bill from 254790123456 - ESTHER NJOKI KAMAU Acc. HSE A2","Completed","12,000.00","","42,000.00","true","Pay Bill Online","254790123456 - ESTHER NJOKI KAMAU","","HSE A2"
+"TKB6IJ78KL","04-11-2026 09:01:12","04-11-2026 09:01:12","Business Charge for TKB5EF56GH","Completed","","66.00","41,934.00","true","Pay Bill Charge","","",""
+"TKB7MN90OP","05-11-2026 21:45:00","05-11-2026 21:45:00","Pay Bill from 254711000111 - SAMUEL KIPTOO LANGAT Acc. A3 A4","Completed","20,000.00","","61,934.00","true","Pay Bill Online","254711000111 - SAMUEL KIPTOO LANGAT","","A3 A4"
+"TKB8QR12ST","06-11-2026 08:30:00","06-11-2026 08:30:00","Pay Bill from 254202000000 - ACME LOGISTICS LTD Acc. ","Completed","15,000.00","","76,934.00","true","Pay Bill Online","254202000000 - ACME LOGISTICS LTD","",""
+"TKB9UV34WX","07-11-2026 10:00:00","07-11-2026 10:00:00","Pay Bill from 254733444555 - PETER OTIENO Acc. A1","Failed","12,000.00","","76,934.00","false","Pay Bill Online","254733444555 - PETER OTIENO","","A1"
+"TKC1YZ56AB","08-11-2026 13:13:13","08-11-2026 13:13:13","Withdrawal to bank account 0011223344","Completed","","50,000.00","26,934.00","true","Organization Withdrawal","KCB BANK","",""
+"TKB3XY12ZQ","01-11-2026 07:58:41","01-11-2026 07:58:41","Pay Bill from 254712345678 - JOHN KAMAU MWANGI Acc. B12","Completed","15,000.00","","15,000.00","true","Pay Bill Online","254712345678 - JOHN KAMAU MWANGI","","B12"

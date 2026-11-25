@@ -92,7 +92,7 @@ openai_api_key = "env(OPENAI_API_KEY)"
 
 # Email testing server. Emails sent with the local dev setup are not actually sent - rather, they
 # are monitored, and you can view the emails that would have been sent from the web interface.
-[inbucket]
+[local_smtp]
 enabled = true
 # Port to use for the email testing server web interface.
 port = 54324
@@ -382,3 +382,10 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# Sign-up confirmation email (plain RentFlow style). In production the same
+# template is pasted into Supabase → Authentication → Email templates, and
+# emails go out through Resend's SMTP (see README).
+[auth.email.template.confirmation]
+subject = "Confirm your email for RentFlow"
+content_path = "./supabase/templates/confirm.html"

@@ -1,172 +1,66 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
-import { Card } from "@/components/ui";
-import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/auth/profile";
-import { canManageTeam, canTransferOwnership, roleLabel } from "@/lib/auth/permissions";
-import { signOut } from "@/lib/auth/actions";
-import type { OrgInvite, TeamMember } from "@/lib/supabase/types";
-import {
-  OrgNameForm,
-  InviteForm,
-  RevokeInviteButton,
-  MemberActions,
-  TransferOwnershipForm,
-} from "./settings-forms";
+import type { Metadata } from "next";
+import { PLAN_LABEL, UNIT_LIMIT, hasFeature } from "@/core/plans";
+import { getBuildings, getTeam, getUnits } from "@/server/queries";
+import { requireOrg } from "@/server/session";
+import { supabaseServer } from "@/server/supabase";
+import { ButtonLink, Card, CardTitle, List, ListRow, PageTitle } from "@/ui";
+import { emailConfigured } from "@/server/email";
+import { InviteForm, MemberRow, OrgNameForm, PlanSwitcher } from "./settings-client";
 
-export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const profile = await getProfile();
-  if (!profile) redirect("/onboarding");
-
-  const supabase = await createClient();
-  const manager = canManageTeam(profile.role);
-
-  const [{ data: org }, { data: membersData }, invitesResult] = await Promise.all([
-    supabase.from("orgs").select("id,name").maybeSingle(),
-    supabase.rpc("list_members"),
-    manager
-      ? supabase
-          .from("org_invites")
-          .select("*")
-          .is("accepted_at", null)
-          .is("revoked_at", null)
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-      : Promise.resolve({ data: null }),
-  ]);
-
-  const members = (membersData ?? []) as TeamMember[];
-  const invites = (invitesResult.data ?? []) as OrgInvite[];
-  const dateFmt = new Intl.DateTimeFormat("en-KE", { day: "numeric", month: "short" });
+  const s = await requireOrg();
+  const db = await supabaseServer();
+  const [team, units, buildings] = await Promise.all([getTeam(db, s.org.orgId), getUnits(db, s.org.orgId), getBuildings(db, s.org.orgId)]);
+  const owner = s.org.role === "owner";
+  const limit = UNIT_LIMIT[s.org.plan];
+  const canAddBuilding = buildings.length === 0 || hasFeature(s.org.plan, "multiple_buildings");
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-bold text-slate-900">Settings</h1>
+    <div className="fade-in mx-auto max-w-3xl space-y-4 sm:space-y-6">
+      <PageTitle>Settings</PageTitle>
 
-      {/* ---- organization ---- */}
-      <Card className="p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Organization
-        </h2>
-        {manager ? (
-          <OrgNameForm currentName={org?.name ?? ""} />
-        ) : (
-          <p className="text-slate-900">{org?.name}</p>
+      <Card>
+        <CardTitle sub="The name your team sees.">Your account</CardTitle>
+        <div className="px-6 pb-6">{owner ? <OrgNameForm name={s.org.orgName} /> : <p className="text-[15px]">{s.org.orgName}</p>}</div>
+      </Card>
+
+      <Card>
+        <CardTitle sub="Names, due dates and late fees." action={canAddBuilding ? <ButtonLink href="/onboarding" variant="secondary" size="sm">Add a building</ButtonLink> : undefined}>
+          Buildings
+        </CardTitle>
+        <List className="border-t border-line">
+          {buildings.map((b) => (
+            <ListRow key={b.id} href={`/settings/buildings/${b.id}`} title={b.name} sub={`${units.filter((u) => u.building_id === b.id).length} units · rent due on day ${b.default_due_day}`} end={<span className="text-[15px] text-accent">Edit</span>} />
+          ))}
+        </List>
+        {!canAddBuilding && <p className="px-6 pb-6 text-[13px] text-muted">More than one building comes with the Pro plan.</p>}
+      </Card>
+
+      <Card>
+        <CardTitle sub="Owners and managers can do everything. Caretakers record payments. Viewers can only look.">Your team</CardTitle>
+        <ul className="divide-y divide-line border-t border-line">
+          {team.map((m) => (
+            <MemberRow key={m.user_id} member={m} isSelf={m.user_id === s.userId} canEdit={owner} />
+          ))}
+        </ul>
+        {(owner || s.org.role === "manager") && (
+          <div className="border-t border-line p-6">
+            <InviteForm canInviteOwners={owner} emailOn={emailConfigured()} orgName={s.org.orgName} />
+          </div>
         )}
       </Card>
 
-      {/* ---- team ---- */}
-      <Card className="p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Team</h2>
-        <ul className="divide-y divide-slate-100">
-          {members.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 py-3.5">
-              <div className="min-w-0">
-                <p className="truncate font-medium text-slate-900">
-                  {m.full_name?.trim() || m.email || "Unnamed"}
-                  {m.id === profile.id ? (
-                    <span className="ml-2 text-xs font-normal text-slate-400">(you)</span>
-                  ) : null}
-                </p>
-                <p className="truncate text-sm text-slate-500">{m.email}</p>
-              </div>
-              {manager ? (
-                <MemberActions member={m} selfId={profile.id} />
-              ) : (
-                <span className="text-sm font-medium text-slate-500">{roleLabel(m.role)}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      {/* ---- invites (managers only) ---- */}
-      {manager ? (
-        <Card className="p-5">
-          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Invite staff
-          </h2>
-          <p className="mb-4 text-sm text-slate-500">
-            Caretakers can record payments. Admins can also manage tenants and staff. Viewers can
-            only look.
-          </p>
-          <InviteForm />
-
-          {invites.length > 0 ? (
-            <div className="mt-6 border-t border-slate-100 pt-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Pending invites
-              </h3>
-              <ul className="divide-y divide-slate-100">
-                {invites.map((inv) => (
-                  <li key={inv.id} className="flex items-center justify-between gap-3 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">
-                        {inv.email ?? "Link invite"}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {roleLabel(inv.role)} · expires {dateFmt.format(new Date(inv.expires_at))}
-                      </p>
-                    </div>
-                    <RevokeInviteButton inviteId={inv.id} />
-                  </li>
-                ))}
-              </ul>
+      <Card>
+        <CardTitle sub={limit ? `${units.length} of ${limit} units used` : `${units.length} units`}>Plan: {PLAN_LABEL[s.org.plan]}</CardTitle>
+        <div className="px-6 pb-6 text-[15px] text-muted">
+          Every plan matches payments automatically. Growth adds live M-Pesa matching, automatic reminders, a caretaker, water bills, late fees and deposits. Pro adds more buildings, WhatsApp, owner statements, tax summaries and expenses.
+          {s.isPlatformAdmin && (
+            <div className="mt-4">
+              <PlanSwitcher plan={s.org.plan} />
             </div>
-          ) : null}
-        </Card>
-      ) : null}
-
-      {/* ---- SMS diagnostics ---- */}
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              SMS Diagnostics
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Every receipt SMS, delivery timelines, and live pipeline statistics.
-            </p>
-          </div>
-          <Link
-            href="/settings/sms"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            Open diagnostics
-          </Link>
-        </div>
-      </Card>
-
-      {/* ---- ownership (owner only) ---- */}
-      {canTransferOwnership(profile.role) ? (
-        <Card className="p-5">
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Ownership
-          </h2>
-          <TransferOwnershipForm members={members} selfId={profile.id} />
-        </Card>
-      ) : null}
-
-      {/* ---- account ---- */}
-      <Card className="p-5">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Account
-        </h2>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-medium text-slate-900">{profile.full_name?.trim() || "Unnamed"}</p>
-            <p className="text-sm text-slate-500">Signed in as {roleLabel(profile.role)}</p>
-          </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="min-h-11 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-red-600/90 transition hover:border-red-200 hover:bg-red-50/70 hover:text-red-700"
-            >
-              Sign out
-            </button>
-          </form>
+          )}
         </div>
       </Card>
     </div>
