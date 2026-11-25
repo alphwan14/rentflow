@@ -18,7 +18,7 @@ export type UploadState = { error?: string; needsPassword?: boolean } | undefine
 export async function uploadStatement(_: UploadState, form: FormData): Promise<UploadState> {
   const s = await requireOrg();
   const file = form.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose a statement file" };
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose your M-Pesa statement file first." };
   const buildingId = (form.get("building_id") as string) || null;
   const password = ((form.get("password") as string) || "").trim() || undefined;
 
@@ -27,10 +27,10 @@ export async function uploadStatement(_: UploadState, form: FormData): Promise<U
     parsed = await parseStatementFile(file, password);
   } catch (e) {
     if (e instanceof StatementFormatError) return { error: e.message, needsPassword: /password/i.test(e.message) };
-    return { error: "We couldn't read that file. Try the CSV or Excel export of the statement." };
+    return { error: "We couldn't read that file. Try the Excel or CSV version of your M-Pesa statement." };
   }
   if (!parsed.payments.length) {
-    return { error: `No incoming payments found in this statement (${parsed.skipped.length} other lines skipped).` };
+    return { error: "We didn't find any payments into your account in this statement. Check it's the right file." };
   }
 
   const db = await supabaseServer();
@@ -71,6 +71,5 @@ export async function uploadStatement(_: UploadState, form: FormData): Promise<U
       console.error("matching failed", e);
     }
   }
-  const onboarding = form.get("onboarding") ? "?onboarding=1" : "";
-  redirect(`/statements/${upload_id}${onboarding}`);
+  redirect(form.get("onboarding") ? `/onboarding/done?b=${buildingId ?? ""}&u=${upload_id}` : `/payments/upload/${upload_id}`);
 }

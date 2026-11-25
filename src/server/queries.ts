@@ -1,5 +1,6 @@
 import "server-only";
 import type { LedgerEntry } from "@/core/ledger";
+import type { PayTo } from "@/core/messages";
 import { addMonths, periodOf, todayNairobi } from "@/core/period";
 import { EVENT_COLUMNS } from "./matching";
 import type { Db } from "./supabase";
@@ -18,9 +19,9 @@ export async function getLeases(db: Db, orgId: string, buildingId?: string | nul
   if (buildingId) q = q.eq("building_id", buildingId);
   const { data, error } = await q.order("unit_code");
   if (error) throw error;
-  return (data as LeaseOverview[]).map((r) =>
-    num(r, ["rent_cents", "deposit_cents", "balance_cents", "credits_cents", "paid_this_month_cents"]),
-  );
+  return (data as LeaseOverview[])
+    .map((r) => num(r, ["rent_cents", "deposit_cents", "balance_cents", "credits_cents", "paid_this_month_cents"]))
+    .sort((a, b) => a.building_name.localeCompare(b.building_name) || a.unit_code.localeCompare(b.unit_code, "en", { numeric: true }));
 }
 
 export async function getBuildings(db: Db, orgId: string): Promise<BuildingRow[]> {
@@ -85,10 +86,24 @@ export async function getInbox(db: Db, orgId: string, buildingId?: string | null
   return { events: (data as PaymentEventRow[]).map((e) => num(e, ["amount_cents"])), count: count ?? 0 };
 }
 
+export interface LeasePayment {
+  id: string;
+  amount_cents: number;
+  paid_at: string;
+  reference: string;
+  method: string;
+  match_method: string;
+  status: string;
+  payer_phone: string | null;
+  payer_phone_masked: string | null;
+  payer_name: string | null;
+}
+
 export interface LeaseDetail {
   lease: LeaseOverview;
   entries: LedgerEntry[];
-  payments: { id: string; amount_cents: number; paid_at: string; reference: string; method: string; match_method: string; status: string }[];
+  payments: LeasePayment[];
+  payTo: PayTo | null;
 }
 
 export async function getLeaseDetail(db: Db, leaseId: string): Promise<LeaseDetail | null> {
@@ -102,13 +117,15 @@ export async function getLeaseDetail(db: Db, leaseId: string): Promise<LeaseDeta
       .order("seq"),
     db
       .from("payments")
-      .select("id, amount_cents, paid_at, reference, method, match_method, status")
+      .select("id, amount_cents, paid_at, reference, method, match_method, status, payment_events(payer_phone, payer_phone_masked, payer_name)")
       .eq("lease_id", leaseId)
       .order("paid_at", { ascending: false }),
   ]);
   if (!lease) return null;
+  const l = num(lease as LeaseOverview, ["rent_cents", "deposit_cents", "balance_cents", "credits_cents", "paid_this_month_cents"]);
   return {
-    lease: num(lease as LeaseOverview, ["rent_cents", "deposit_cents", "balance_cents", "credits_cents", "paid_this_month_cents"]),
+    lease: l,
+    payTo: await getPayTo(db, l.org_id, l.building_id),
     entries: (entries ?? []).map((e) => {
       const c = (Array.isArray(e.charges) ? e.charges[0] : e.charges) as { kind: string; period: string | null; description: string | null } | null;
       return {
@@ -124,8 +141,85 @@ export async function getLeaseDetail(db: Db, leaseId: string): Promise<LeaseDeta
         description: c?.description ?? (e.kind === "charge" ? null : e.memo),
       } satisfies LedgerEntry;
     }),
-    payments: (payments ?? []).map((p) => num(p, ["amount_cents"])),
+    payments: (payments ?? []).map((p) => {
+      const ev = (Array.isArray(p.payment_events) ? p.payment_events[0] : p.payment_events) as { payer_phone: string | null; payer_phone_masked: string | null; payer_name: string | null } | null;
+      return {
+        id: p.id,
+        amount_cents: Number(p.amount_cents),
+        paid_at: p.paid_at,
+        reference: p.reference,
+        method: p.method,
+        match_method: p.match_method,
+        status: p.status,
+        payer_phone: ev?.payer_phone ?? null,
+        payer_phone_masked: ev?.payer_phone_masked ?? null,
+        payer_name: ev?.payer_name ?? null,
+      };
+    }),
   };
+}
+
+/** Where tenants of a building pay (building's channel, else the org-wide one). */
+export async function getPayTo(db: Db, orgId: string, buildingId: string): Promise<PayTo | null> {
+  const { data } = await db
+    .from("payout_channels")
+    .select("kind, number, bank_name, building_id")
+    .eq("org_id", orgId)
+    .or(`building_id.eq.${buildingId},building_id.is.null`);
+  const c = (data ?? []).sort((a, b) => (a.building_id ? -1 : 0) - (b.building_id ? -1 : 0))[0];
+  return c ? { kind: c.kind, number: c.number, bankName: c.bank_name } : null;
+}
+
+export interface PaymentListItem {
+  id: string;
+  source: string;
+  trans_code: string;
+  amount_cents: number;
+  occurred_at: string;
+  payer_name: string | null;
+  payer_phone: string | null;
+  payer_phone_masked: string | null;
+  status: string;
+  lease_id: string | null;
+  tenant_name: string | null;
+  unit_code: string | null;
+}
+
+/** Every payment RentFlow knows about, newest first. */
+export async function getPayments(db: Db, orgId: string, limit = 150): Promise<PaymentListItem[]> {
+  const { data, error } = await db
+    .from("payment_events")
+    .select("id, source, trans_code, amount_cents, occurred_at, payer_name, payer_phone, payer_phone_masked, status, payments(lease_id, status, leases(units(code), tenants(full_name)))")
+    .eq("org_id", orgId)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map((e) => {
+    type One<T> = T | T[] | null;
+    const pays = (Array.isArray(e.payments) ? e.payments : e.payments ? [e.payments] : []) as unknown as {
+      lease_id: string;
+      status: string;
+      leases: One<{ units: One<{ code: string }>; tenants: One<{ full_name: string }> }>;
+    }[];
+    const live = pays.find((p) => p.status === "posted");
+    const lease = live ? (Array.isArray(live.leases) ? live.leases[0] : live.leases) : null;
+    const unit = lease ? (Array.isArray(lease.units) ? lease.units[0] : lease.units) : null;
+    const tenant = lease ? (Array.isArray(lease.tenants) ? lease.tenants[0] : lease.tenants) : null;
+    return {
+      id: e.id,
+      source: e.source,
+      trans_code: e.trans_code,
+      amount_cents: Number(e.amount_cents),
+      occurred_at: e.occurred_at,
+      payer_name: e.payer_name,
+      payer_phone: e.payer_phone,
+      payer_phone_masked: e.payer_phone_masked,
+      status: e.status,
+      lease_id: live?.lease_id ?? null,
+      tenant_name: tenant?.full_name ?? null,
+      unit_code: unit?.code ?? null,
+    };
+  });
 }
 
 export interface UploadRow {

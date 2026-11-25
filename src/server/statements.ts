@@ -7,7 +7,7 @@ export const MAX_STATEMENT_BYTES = 10 * 1024 * 1024;
 /** Parse an uploaded M-Pesa statement: CSV, Excel (.xlsx) or PDF (optionally password-protected). */
 export async function parseStatementFile(file: File, password?: string): Promise<ParseResult> {
   if (file.size === 0) throw new StatementFormatError("That file is empty.");
-  if (file.size > MAX_STATEMENT_BYTES) throw new StatementFormatError("That file is over 10 MB. Upload one month at a time.");
+  if (file.size > MAX_STATEMENT_BYTES) throw new StatementFormatError("That file is too big. Upload one or two months at a time.");
   const name = file.name.toLowerCase();
   const bytes = new Uint8Array(await file.arrayBuffer());
 
@@ -21,11 +21,11 @@ export async function parseStatementFile(file: File, password?: string): Promise
       if (/password/i.test(msg)) {
         throw new StatementFormatError(
           password
-            ? "That password didn't open the PDF. M-Pesa statement passwords are usually the ID number used to register the line."
-            : "This PDF is password-protected. Enter the statement password (usually the ID number used to register the line).",
+            ? "That password didn't open the PDF. Check the code Safaricom sent with the statement."
+            : "This PDF is locked. Enter the password Safaricom sent with the statement.",
         );
       }
-      throw new StatementFormatError("We couldn't open that PDF.");
+      throw new StatementFormatError("We couldn't open that PDF. Try the Excel or CSV version instead.");
     }
     const { text } = await extractText(pdf, { mergePages: true });
     return parseStatementPdfText(text);
