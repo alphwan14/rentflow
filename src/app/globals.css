@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/*
+ * RentFlow v2 — light grey page, white cards, one accent.
+ * Green / amber / red are reserved for paid / partial / unpaid.
+ */
+:root {
+  --page: #f2f3f5;
+  --card: #ffffff;
+  --ink: #0f1218;
+  --ink-2: #4a5160;
+  --muted: #7a8190;
+  --line: #e6e8ec;
+  --line-strong: #d5d9e0;
+
+  --accent: #3451e6;
+  --accent-ink: #ffffff;
+  --accent-soft: #eef1fd;
+  --accent-track: #dce2fb;
+
+  --paid: #15803d;
+  --paid-soft: #e7f6ec;
+  --partial: #b45309;
+  --partial-soft: #fdf3e2;
+  --unpaid: #c62828;
+  --unpaid-soft: #fdeaea;
+}
+
+@theme inline {
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-track: var(--accent-track);
+  --color-paid: var(--paid);
+  --color-paid-soft: var(--paid-soft);
+  --color-partial: var(--partial);
+  --color-partial-soft: var(--partial-soft);
+  --color-unpaid: var(--unpaid);
+  --color-unpaid-soft: var(--unpaid-soft);
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --radius-card: 16px;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Hide scrollbars on the nav pill row (still scrollable on phones). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
