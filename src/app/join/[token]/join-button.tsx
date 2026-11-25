@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { acceptInvite } from "@/server/actions/org";
-import { Alert, Button } from "@/ui";
+import { Button, Notice } from "@/ui";
 
 export function JoinButton({ token }: { token: string }) {
   const [pending, start] = useTransition();
@@ -10,6 +10,8 @@ export function JoinButton({ token }: { token: string }) {
   return (
     <div className="space-y-3">
       <Button
+        size="lg"
+        className="w-full"
         disabled={pending}
         onClick={() =>
           start(async () => {
@@ -20,7 +22,7 @@ export function JoinButton({ token }: { token: string }) {
       >
         {pending ? "Joining…" : "Join"}
       </Button>
-      {error && <Alert>{error}</Alert>}
+      {error && <Notice>{error}</Notice>}
     </div>
   );
 }

@@ -1,25 +1,26 @@
 import { ButtonLink } from "@/ui";
-import { Brand } from "@/ui/brand";
+import { Wordmark } from "@/ui/brand";
 
 export default function Landing() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col px-4 py-6 sm:px-6">
+    <main className="mx-auto flex min-h-dvh max-w-2xl flex-col px-4 py-4 sm:px-6">
       <header className="flex items-center justify-between">
-        <Brand href="/" />
-        <ButtonLink href="/login" variant="secondary" size="sm">
+        <Wordmark href="/" />
+        <ButtonLink href="/login" variant="ghost">
           Sign in
         </ButtonLink>
       </header>
-      <section className="flex flex-1 flex-col justify-center py-16">
-        <h1 className="max-w-xl text-[36px] leading-[1.1] font-semibold tracking-tight sm:text-[48px]">Know where every shilling of rent is.</h1>
-        <p className="mt-4 max-w-lg text-[17px] text-ink-2">
-          Tenants keep paying into your own paybill. RentFlow reads the payments, matches each one to a tenant, and shows who still owes,
-          without ever holding your money.
+      <section className="fade-in flex flex-1 flex-col justify-center py-16">
+        <h1 className="text-[32px] leading-tight font-semibold">Know who has paid rent, and who hasn&apos;t.</h1>
+        <p className="mt-4 text-[17px] text-muted">
+          Tenants keep paying into your own M-Pesa paybill. RentFlow matches each payment to the right tenant and shows you what is still owed. Your money never passes through us.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <ButtonLink href="/signup">Get started</ButtonLink>
-          <ButtonLink href="/login" variant="secondary">
-            I have an account
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <ButtonLink href="/signup" size="lg">
+            Get started free
+          </ButtonLink>
+          <ButtonLink href="/login" variant="secondary" size="lg">
+            Sign in
           </ButtonLink>
         </div>
       </section>
