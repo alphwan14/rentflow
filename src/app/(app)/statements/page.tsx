@@ -4,7 +4,8 @@ import { formatDate } from "@/core/period";
 import { getBuildings, getUploads } from "@/server/queries";
 import { requireOrg } from "@/server/session";
 import { supabaseServer } from "@/server/supabase";
-import { Card, CardHeader, EmptyState, PageHeader } from "@/ui";
+import { ORG_ID as DEMO_ORG_ID } from "@/demo/data";
+import { Card, CardHeader, EmptyState, PageHeader, buttonClass } from "@/ui";
 import { IconChevronRight } from "@/ui/icons";
 import { UploadForm } from "./upload-form";
 
@@ -16,7 +17,17 @@ export default async function StatementsPage() {
   const [buildings, uploads] = await Promise.all([getBuildings(db, s.org.orgId), getUploads(db, s.org.orgId)]);
   return (
     <div className="space-y-5">
-      <PageHeader title="Statements" sub="Until live M-Pesa notifications are connected, upload a statement each month to keep everything current." />
+      <PageHeader
+        title="Statements"
+        sub="Until live M-Pesa notifications are connected, upload a statement each month to keep everything current."
+        action={
+          s.org.orgId === DEMO_ORG_ID ? (
+            <a href="/statements/sample" className={buttonClass("secondary", "sm")} download>
+              Download a sample statement
+            </a>
+          ) : null
+        }
+      />
       {buildings.length ? (
         <UploadForm buildings={buildings.map((b) => ({ id: b.id, name: b.name }))} />
       ) : (

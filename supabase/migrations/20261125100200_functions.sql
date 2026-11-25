@@ -98,8 +98,14 @@ begin
   return new;
 end $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Users who signed up before this schema existed get a profile too.
+insert into public.profiles (user_id, email, full_name)
+select id, email, coalesce(raw_user_meta_data ->> 'full_name', raw_user_meta_data ->> 'name') from auth.users
+on conflict (user_id) do nothing;
 
 -- ── Audit ──────────────────────────────────────────────────────────────────
 create function public.audit_row() returns trigger
